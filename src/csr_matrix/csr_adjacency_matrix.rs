@@ -37,6 +37,14 @@ impl Matrix<bool> for CsrAdjacencyMatrix {
     }
 
     fn add_entry(&mut self, entry: bool, col: u64, row: u64) {
+        if col + 1 > self.dimension {
+            self.dimension = col + 1
+        }
+
+        if row + 1 > self.dimension {
+            self.dimension = row + 1
+        }
+
         if !entry {
             return;
         }

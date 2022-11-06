@@ -48,7 +48,7 @@ impl<T: Display + Numeric> CsrMatrix<T> {
         if T::has_decimal() {
             entry_size += 1 + decimal_digits;
         }
-        
+
         let chars_per_entry = entry_size + 2;
 
         let mut buffer = Vec::with_capacity(
@@ -72,7 +72,7 @@ impl<T: Display + Numeric> CsrMatrix<T> {
                         *buffer_ptr.add(pos) = ' ' as u8;
                         pos += 1;
                     }
-                    
+
                     *buffer_ptr.add(pos) = ',' as u8;
                     pos += 1;
 
@@ -148,6 +148,18 @@ impl<T: Display + Numeric> Matrix<T> for CsrMatrix<T> {
     }
 
     fn add_entry(&mut self, entry: T, col: u64, row: u64) {
+        if col + 1 > self.dimension {
+            self.dimension = col + 1
+        }
+
+        if row + 1 > self.dimension {
+            self.dimension = row + 1
+        }
+
+        if entry == T::zero() {
+            return;
+        }
+
         let row_table = self.edges_table.entry(col).or_insert(HashMap::new());
         row_table.insert(row, entry);
     }

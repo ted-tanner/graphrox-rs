@@ -4,7 +4,7 @@
 
 use std::convert::{Into, TryFrom};
 
-use crate::csr_matrix::{CsrAdjacencyMatrix, CsrMatrix};
+use crate::csr_matrix::{CsrAdjacencyMatrix, CsrMatrix, Matrix};
 use crate::error::GphrxError;
 
 #[derive(Clone)]
@@ -32,32 +32,43 @@ impl GphrxGraph {
         self.is_undirected
     }
 
+    pub fn node_count(&self) -> u64 {
+        self.adjacency_matrix.dimension()
+    }
+
     pub fn adjacency_matrix_string(&self) -> String {
-        todo!();
+        self.adjacency_matrix.to_string()
     }
 
     pub fn does_edge_exist(&self, from_vertex_id: u64, to_vertex_id: u64) -> bool {
-        todo!();
+        self.adjacency_matrix
+            .get_entry(from_vertex_id, to_vertex_id)
     }
 
     pub fn add_vertex(&mut self, vertex_id: u64, edges: &[u64]) {
-        todo!();
-    }
-
-    pub fn remove_vertex(&mut self, vertex_id: u64) {
-        todo!();
+        for edge in edges {
+            self.add_edge(vertex_id, *edge);
+        }
     }
 
     pub fn add_edge(&mut self, from_vertex_id: u64, to_vertex_id: u64) {
-        todo!();
+        self.adjacency_matrix
+            .add_entry(true, from_vertex_id, to_vertex_id);
+
+        if self.is_undirected {
+            self.adjacency_matrix
+                .add_entry(true, to_vertex_id, from_vertex_id);
+        }
     }
 
-    pub fn remove_edge(
-        &mut self,
-        from_vertex_id: u64,
-        to_vertex_id: u64,
-    ) -> Result<(), GphrxError> {
-        todo!();
+    pub fn remove_edge(&mut self, from_vertex_id: u64, to_vertex_id: u64) {
+        self.adjacency_matrix
+            .delete_entry(from_vertex_id, to_vertex_id);
+
+        if self.is_undirected {
+            self.adjacency_matrix
+                .delete_entry(to_vertex_id, from_vertex_id);
+        }
     }
 
     pub fn find_avg_pool_matrix(&self, block_dimension: u64) -> CsrMatrix<f64> {
@@ -67,11 +78,15 @@ impl GphrxGraph {
     pub fn approximate(&self, block_dimension: u64, threshold: f64) -> Self {
         todo!();
     }
+
+    pub fn encode_to_bytes(&self) -> Vec<u8> {
+        todo!();
+    }
 }
 
 impl Into<Vec<u8>> for GphrxGraph {
     fn into(self) -> Vec<u8> {
-        todo!();
+        self.encode_to_bytes()
     }
 }
 
