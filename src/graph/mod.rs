@@ -52,7 +52,11 @@ impl GphrxGraph {
         todo!();
     }
 
-    pub fn remove_edge(&mut self, from_vertex_id: u64, to_vertex_id: u64) -> Result<(), GphrxError> {
+    pub fn remove_edge(
+        &mut self,
+        from_vertex_id: u64,
+        to_vertex_id: u64,
+    ) -> Result<(), GphrxError> {
         todo!();
     }
 
