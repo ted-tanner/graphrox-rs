@@ -35,6 +35,7 @@ impl<T: Display + Numeric> CsrMatrix<T> {
         }
 
         let mut highest = T::min();
+
         for col in self.edges_table.keys() {
             for val in self.edges_table.get(col).unwrap().values() {
                 if val.gt(&highest) {
@@ -43,11 +44,15 @@ impl<T: Display + Numeric> CsrMatrix<T> {
             }
         }
 
+        let highest = highest;
+
         let mut entry_size = highest.integral_digit_count();
 
         if T::has_decimal() {
             entry_size += 1 + decimal_digits;
         }
+
+        let entry_size = entry_size;
 
         let chars_per_entry = entry_size + 2;
 
