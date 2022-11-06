@@ -2,8 +2,8 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
-use std::collections::HashMap;
 use std::collections::hash_map::Iter as HashMapIter;
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::iter::{IntoIterator, Iterator};
 
@@ -202,7 +202,6 @@ impl<T: Display + Numeric> ToString for CsrMatrix<T> {
         self.to_string_with_precision(2)
     }
 }
-
 
 impl<'a, T: Display + Numeric> IntoIterator for &'a CsrMatrix<T> {
     type Item = (T, u64, u64);
