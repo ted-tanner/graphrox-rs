@@ -2,7 +2,10 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
+use std::collections::hash_map::Iter as HashMapIter;
+use std::collections::hash_set::Iter as HashSetIter;
 use std::collections::{HashMap, HashSet};
+use std::iter::{IntoIterator, Iterator};
 use std::string::ToString;
 
 use crate::csr_matrix::Matrix;
@@ -138,5 +141,68 @@ impl ToString for CsrAdjacencyMatrix {
         let buffer = unsafe { String::from(std::str::from_utf8_unchecked(&buffer[..])) };
 
         buffer
+    }
+}
+
+impl<'a> IntoIterator for &'a CsrAdjacencyMatrix {
+    type Item = (u64, u64);
+    type IntoIter = CsrAdjacencyMatrixIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        CsrAdjacencyMatrixIter {
+            matrix: self,
+            col_iter: self.edges_table.iter(),
+            row_iter: None,
+            curr_col: 0,
+        }
+    }
+}
+
+pub struct CsrAdjacencyMatrixIter<'a> {
+    matrix: &'a CsrAdjacencyMatrix,
+    col_iter: HashMapIter<'a, u64, HashSet<u64>>,
+    row_iter: Option<HashSetIter<'a, u64>>,
+    curr_col: u64,
+}
+
+impl<'a> Iterator for CsrAdjacencyMatrixIter<'a> {
+    type Item = (u64, u64);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.matrix.dimension() == 0 {
+            return None;
+        }
+
+        loop {
+            if let Some(row_iter) = &mut self.row_iter {
+                let row = row_iter.next();
+                match row {
+                    Some(r) => return Some((self.curr_col, *r)),
+                    None => (),
+                }
+            }
+
+            let col_iter = self.col_iter.next();
+            match col_iter {
+                Some((col, row_set)) => {
+                    self.curr_col = *col;
+                    self.row_iter = Some(row_set.iter());
+                }
+                None => return None,
+            }
+
+            /* If we are at this point, we have just set a new row_iterator in self. We
+             * can therefore loop back and try again.
+             *
+             * On the off-chance that there is a column with an empty HashSet (which can
+             * happen if the last element in the HashSet is removed), we need to go beck
+             * to the beginning of the function, hence we loop.
+             *
+             * The code would be a little cleaner if we recursively called next here,
+             * but then a stack overflow would be possible (theoretically, though it
+             * would require a LOT of columns to contain empty hash sets sequentially)
+             * and Rust doesn't guarantee tail recursion will be optimized into a loop.
+             */
+        }
     }
 }

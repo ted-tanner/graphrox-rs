@@ -1,8 +1,10 @@
 pub trait Numeric: PartialOrd + Copy {
     fn min() -> Self;
     fn zero() -> Self;
+    fn one() -> Self;
     fn has_decimal() -> bool;
 
+    fn add_one(&self) -> Self;
     fn integral_digit_count(&self) -> usize;
 }
 
@@ -15,8 +17,16 @@ impl Numeric for u8 {
         0
     }
 
+    fn one() -> Self {
+        1
+    }
+
     fn has_decimal() -> bool {
         false
+    }
+
+    fn add_one(&self) -> Self {
+        self + 1
     }
 
     fn integral_digit_count(&self) -> usize {
@@ -33,8 +43,16 @@ impl Numeric for u16 {
         0
     }
 
+    fn one() -> Self {
+        1
+    }
+
     fn has_decimal() -> bool {
         false
+    }
+
+    fn add_one(&self) -> Self {
+        self + 1
     }
 
     fn integral_digit_count(&self) -> usize {
@@ -51,8 +69,16 @@ impl Numeric for u32 {
         0
     }
 
+    fn one() -> Self {
+        1
+    }
+
     fn has_decimal() -> bool {
         false
+    }
+
+    fn add_one(&self) -> Self {
+        self + 1
     }
 
     fn integral_digit_count(&self) -> usize {
@@ -69,8 +95,16 @@ impl Numeric for u64 {
         0
     }
 
+    fn one() -> Self {
+        1
+    }
+
     fn has_decimal() -> bool {
         false
+    }
+
+    fn add_one(&self) -> Self {
+        self + 1
     }
 
     fn integral_digit_count(&self) -> usize {
@@ -87,8 +121,16 @@ impl Numeric for u128 {
         0
     }
 
+    fn one() -> Self {
+        1
+    }
+
     fn has_decimal() -> bool {
         false
+    }
+
+    fn add_one(&self) -> Self {
+        self + 1
     }
 
     fn integral_digit_count(&self) -> usize {
@@ -105,8 +147,16 @@ impl Numeric for i8 {
         0
     }
 
+    fn one() -> Self {
+        1
+    }
+
     fn has_decimal() -> bool {
         false
+    }
+
+    fn add_one(&self) -> Self {
+        self + 1
     }
 
     fn integral_digit_count(&self) -> usize {
@@ -123,8 +173,16 @@ impl Numeric for i16 {
         0
     }
 
+    fn one() -> Self {
+        1
+    }
+
     fn has_decimal() -> bool {
         false
+    }
+
+    fn add_one(&self) -> Self {
+        self + 1
     }
 
     fn integral_digit_count(&self) -> usize {
@@ -141,8 +199,16 @@ impl Numeric for i32 {
         0
     }
 
+    fn one() -> Self {
+        1
+    }
+
     fn has_decimal() -> bool {
         false
+    }
+
+    fn add_one(&self) -> Self {
+        self + 1
     }
 
     fn integral_digit_count(&self) -> usize {
@@ -159,8 +225,16 @@ impl Numeric for i64 {
         0
     }
 
+    fn one() -> Self {
+        1
+    }
+
     fn has_decimal() -> bool {
         false
+    }
+
+    fn add_one(&self) -> Self {
+        self + 1
     }
 
     fn integral_digit_count(&self) -> usize {
@@ -177,8 +251,16 @@ impl Numeric for i128 {
         0
     }
 
+    fn one() -> Self {
+        1
+    }
+
     fn has_decimal() -> bool {
         true
+    }
+
+    fn add_one(&self) -> Self {
+        self + 1
     }
 
     fn integral_digit_count(&self) -> usize {
@@ -195,8 +277,16 @@ impl Numeric for f32 {
         0.0
     }
 
+    fn one() -> Self {
+        1.0
+    }
+
     fn has_decimal() -> bool {
         true
+    }
+
+    fn add_one(&self) -> Self {
+        self + 1.0
     }
 
     fn integral_digit_count(&self) -> usize {
@@ -213,8 +303,16 @@ impl Numeric for f64 {
         0.0
     }
 
+    fn one() -> Self {
+        1.0
+    }
+
     fn has_decimal() -> bool {
         true
+    }
+
+    fn add_one(&self) -> Self {
+        self + 1.0
     }
 
     fn integral_digit_count(&self) -> usize {
@@ -231,8 +329,16 @@ impl Numeric for bool {
         false
     }
 
+    fn one() -> Self {
+        true
+    }
+
     fn has_decimal() -> bool {
         false
+    }
+
+    fn add_one(&self) -> Self {
+        true
     }
 
     fn integral_digit_count(&self) -> usize {

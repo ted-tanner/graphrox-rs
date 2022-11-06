@@ -3,7 +3,9 @@
 #![allow(unused_variables)]
 
 use std::collections::HashMap;
+use std::collections::hash_map::Iter as HashMapIter;
 use std::fmt::Display;
+use std::iter::{IntoIterator, Iterator};
 
 use crate::csr_matrix::Matrix;
 use crate::util::Numeric;
@@ -22,6 +24,22 @@ impl<T: Display + Numeric> CsrMatrix<T> {
         }
     }
 
+    pub fn increment_entry(&mut self, col: u64, row: u64) {
+        if col + 1 > self.dimension {
+            self.dimension = col + 1
+        }
+
+        if row + 1 > self.dimension {
+            self.dimension = row + 1
+        }
+
+        let row_table = self.edges_table.entry(col).or_insert(HashMap::new());
+        row_table
+            .entry(row)
+            .and_modify(|e| *e = e.add_one())
+            .or_insert(T::one());
+    }
+
     pub fn to_string_with_precision(&self, decimal_digits: usize) -> String {
         const EXTRA_CHARS_PER_ROW_AT_FRONT: usize = 2; // "[ "
         const EXTRA_CHARS_PER_ROW_AT_BACK: usize = 3; // "]\r\n"
@@ -36,8 +54,8 @@ impl<T: Display + Numeric> CsrMatrix<T> {
 
         let mut highest = T::min();
 
-        for col in self.edges_table.keys() {
-            for val in self.edges_table.get(col).unwrap().values() {
+        for row_table in self.edges_table.values() {
+            for val in row_table.values() {
                 if val.gt(&highest) {
                     highest = *val;
                 }
@@ -182,5 +200,69 @@ impl<T: Display + Numeric> Matrix<T> for CsrMatrix<T> {
 impl<T: Display + Numeric> ToString for CsrMatrix<T> {
     fn to_string(&self) -> String {
         self.to_string_with_precision(2)
+    }
+}
+
+
+impl<'a, T: Display + Numeric> IntoIterator for &'a CsrMatrix<T> {
+    type Item = (T, u64, u64);
+    type IntoIter = CsrMatrixIter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        CsrMatrixIter {
+            matrix: self,
+            col_iter: self.edges_table.iter(),
+            row_iter: None,
+            curr_col: 0,
+        }
+    }
+}
+
+pub struct CsrMatrixIter<'a, T: Display + Numeric> {
+    matrix: &'a CsrMatrix<T>,
+    col_iter: HashMapIter<'a, u64, HashMap<u64, T>>,
+    row_iter: Option<HashMapIter<'a, u64, T>>,
+    curr_col: u64,
+}
+
+impl<'a, T: Display + Numeric> Iterator for CsrMatrixIter<'a, T> {
+    type Item = (T, u64, u64);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.matrix.dimension() == 0 {
+            return None;
+        }
+
+        loop {
+            if let Some(row_iter) = &mut self.row_iter {
+                let row = row_iter.next();
+                match row {
+                    Some((r, e)) => return Some((*e, self.curr_col, *r)),
+                    None => (),
+                }
+            }
+
+            let col_iter = self.col_iter.next();
+            match col_iter {
+                Some((col, row_set)) => {
+                    self.curr_col = *col;
+                    self.row_iter = Some(row_set.iter());
+                }
+                None => return None,
+            }
+
+            /* If we are at this point, we have just set a new row_iterator in self. We
+             * can therefore loop back and try again.
+             *
+             * On the off-chance that there is a column with an empty HashMap (which can
+             * happen if the last element in the HashMap is removed), we need to go beck
+             * to the beginning of the function, hence we loop.
+             *
+             * The code would be a little cleaner if we recursively called next here,
+             * but then a stack overflow would be possible (theoretically, though it
+             * would require a LOT of columns to contain empty hash sets sequentially)
+             * and Rust doesn't guarantee tail recursion will be optimized into a loop.
+             */
+        }
     }
 }
