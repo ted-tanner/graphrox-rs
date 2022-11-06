@@ -8,12 +8,12 @@ use crate::csr_matrix::{CsrAdjacencyMatrix, CsrMatrix, Matrix};
 use crate::error::GphrxError;
 
 #[derive(Clone)]
-struct GphrxGraph {
+struct Graph {
     is_undirected: bool,
     adjacency_matrix: CsrAdjacencyMatrix,
 }
 
-impl GphrxGraph {
+impl Graph {
     pub fn new_undirected() -> Self {
         Self {
             is_undirected: true,
@@ -84,13 +84,13 @@ impl GphrxGraph {
     }
 }
 
-impl Into<Vec<u8>> for GphrxGraph {
+impl Into<Vec<u8>> for Graph {
     fn into(self) -> Vec<u8> {
         self.encode_to_bytes()
     }
 }
 
-impl TryFrom<&[u8]> for GphrxGraph {
+impl TryFrom<&[u8]> for Graph {
     type Error = GphrxError;
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
