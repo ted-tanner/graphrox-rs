@@ -2,23 +2,30 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
+use core::fmt::Debug;
 use std::collections::hash_map::Entry;
 use std::collections::hash_map::Iter as HashMapIter;
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::iter::{IntoIterator, Iterator};
 
-use crate::csr_matrix::Matrix;
+use crate::matrix::Matrix;
 use crate::util::Numeric;
 
-#[derive(Clone)]
-pub struct CsrMatrix<T: Display + Numeric> {
+#[derive(Clone, Debug)]
+pub struct CsrMatrix<T: Debug + Display + Numeric> {
     dimension: u64,
     edges_table: HashMap<u64, HashMap<u64, T>>,
     entry_count: u64,
 }
 
-impl<T: Display + Numeric> CsrMatrix<T> {
+impl<T: Debug + Display + Numeric> Default for CsrMatrix<T> {
+    fn default() -> Self {
+        CsrMatrix::new()
+    }
+}
+
+impl<T: Debug + Display + Numeric> CsrMatrix<T> {
     pub fn new() -> Self {
         Self {
             dimension: 0,
@@ -36,14 +43,16 @@ impl<T: Display + Numeric> CsrMatrix<T> {
             self.dimension = row + 1
         }
 
-        let row_table = self.edges_table.entry(col).or_insert(HashMap::new());
+        let row_table = self.edges_table.entry(col).or_default();
         let entry = row_table.entry(row);
 
         if let Entry::Vacant(_) = entry {
             self.entry_count += 1;
         }
 
-        entry.and_modify(|e| *e = e.add_one()).or_insert(T::one());
+        entry
+            .and_modify(|e| *e = e.add_one())
+            .or_insert_with(T::one);
     }
 
     pub fn to_string_with_precision(&self, decimal_digits: usize) -> String {
@@ -90,38 +99,38 @@ impl<T: Display + Numeric> CsrMatrix<T> {
         let mut pos = 0;
         for row in 0..self.dimension {
             unsafe {
-                *(buffer_ptr.add(pos)) = '[' as u8;
+                *(buffer_ptr.add(pos)) = b'[';
                 pos += 1;
 
-                *buffer_ptr.add(pos) = ' ' as u8;
+                *buffer_ptr.add(pos) = b' ';
                 pos += 1;
 
                 for col in 0..(self.dimension - 1) {
                     for _ in 0..entry_size {
-                        *buffer_ptr.add(pos) = ' ' as u8;
+                        *buffer_ptr.add(pos) = b' ';
                         pos += 1;
                     }
 
-                    *buffer_ptr.add(pos) = ',' as u8;
+                    *buffer_ptr.add(pos) = b',';
                     pos += 1;
 
-                    *buffer_ptr.add(pos) = ' ' as u8;
+                    *buffer_ptr.add(pos) = b' ';
                     pos += 1;
                 }
 
-                *buffer_ptr.add(pos) = '0' as u8;
+                *buffer_ptr.add(pos) = b'0';
                 pos += 1;
 
-                *buffer_ptr.add(pos) = ' ' as u8;
+                *buffer_ptr.add(pos) = b' ';
                 pos += 1;
 
-                *buffer_ptr.add(pos) = ']' as u8;
+                *buffer_ptr.add(pos) = b']';
                 pos += 1;
 
-                *buffer_ptr.add(pos) = '\r' as u8;
+                *buffer_ptr.add(pos) = b'\r';
                 pos += 1;
 
-                *buffer_ptr.add(pos) = '\n' as u8;
+                *buffer_ptr.add(pos) = b'\n';
                 pos += 1;
             }
         }
@@ -159,7 +168,7 @@ impl<T: Display + Numeric> CsrMatrix<T> {
     }
 }
 
-impl<T: Display + Numeric> Matrix<T> for CsrMatrix<T> {
+impl<T: Debug + Display + Numeric> Matrix<T> for CsrMatrix<T> {
     fn dimension(&self) -> u64 {
         self.dimension
     }
@@ -193,10 +202,10 @@ impl<T: Display + Numeric> Matrix<T> for CsrMatrix<T> {
             return;
         }
 
-        let row_table = self.edges_table.entry(col).or_insert(HashMap::new());
+        let row_table = self.edges_table.entry(col).or_default();
         let addition = row_table.insert(row, entry);
 
-        if let None = addition {
+        if addition.is_some() {
             self.entry_count += 1;
         }
     }
@@ -209,19 +218,19 @@ impl<T: Display + Numeric> Matrix<T> for CsrMatrix<T> {
 
         let removal = row_table.remove(&row);
 
-        if let Some(_) = removal {
+        if removal.is_some() {
             self.entry_count -= 1;
         }
     }
 }
 
-impl<T: Display + Numeric> ToString for CsrMatrix<T> {
+impl<T: Debug + Display + Numeric> ToString for CsrMatrix<T> {
     fn to_string(&self) -> String {
         self.to_string_with_precision(2)
     }
 }
 
-impl<'a, T: Display + Numeric> IntoIterator for &'a CsrMatrix<T> {
+impl<'a, T: Debug + Display + Numeric> IntoIterator for &'a CsrMatrix<T> {
     type Item = (T, u64, u64);
     type IntoIter = CsrMatrixIter<'a, T>;
 
@@ -235,14 +244,14 @@ impl<'a, T: Display + Numeric> IntoIterator for &'a CsrMatrix<T> {
     }
 }
 
-pub struct CsrMatrixIter<'a, T: Display + Numeric> {
+pub struct CsrMatrixIter<'a, T: Debug + Display + Numeric> {
     matrix: &'a CsrMatrix<T>,
     col_iter: HashMapIter<'a, u64, HashMap<u64, T>>,
     row_iter: Option<HashMapIter<'a, u64, T>>,
     curr_col: u64,
 }
 
-impl<'a, T: Display + Numeric> Iterator for CsrMatrixIter<'a, T> {
+impl<'a, T: Debug + Display + Numeric> Iterator for CsrMatrixIter<'a, T> {
     type Item = (T, u64, u64);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -253,9 +262,8 @@ impl<'a, T: Display + Numeric> Iterator for CsrMatrixIter<'a, T> {
         loop {
             if let Some(row_iter) = &mut self.row_iter {
                 let row = row_iter.next();
-                match row {
-                    Some((r, e)) => return Some((*e, self.curr_col, *r)),
-                    None => (),
+                if let Some((r, e)) = row {
+                    return Some((*e, self.curr_col, *r));
                 }
             }
 

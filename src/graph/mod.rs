@@ -4,8 +4,8 @@
 
 use std::convert::{Into, TryFrom};
 
-use crate::csr_matrix::{CsrAdjacencyMatrix, CsrMatrix, Matrix};
-use crate::error::GphrxError;
+use crate::error::GraphRoxError;
+use crate::matrix::{CsrAdjacencyMatrix, CsrMatrix, Matrix};
 
 #[repr(C, packed)]
 struct GraphBytesHeader {
@@ -17,7 +17,7 @@ struct GraphBytesHeader {
     is_weighted: u8,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Graph {
     is_undirected: bool,
     adjacency_matrix: CsrAdjacencyMatrix,
@@ -61,8 +61,8 @@ impl Graph {
             for edge in edges {
                 self.add_edge(vertex_id, *edge);
             }
-            
-            edges.len() > 0
+
+            !edges.is_empty()
         } else {
             false
         };
@@ -107,7 +107,7 @@ impl Graph {
             block_dimension
         };
 
-        let are_edge_blocks_padded = !(self.vertex_count() % block_dimension == 0);
+        let are_edge_blocks_padded = self.vertex_count() % block_dimension != 0;
 
         let mut blocks_per_row = self.vertex_count() / block_dimension;
 
@@ -162,7 +162,7 @@ impl Graph {
             block_dimension
         };
 
-        let are_edge_blocks_padded = !(self.vertex_count() % block_dimension == 0);
+        let are_edge_blocks_padded = self.vertex_count() % block_dimension != 0;
 
         let mut blocks_per_row = self.vertex_count() / block_dimension;
 
@@ -199,7 +199,7 @@ impl Graph {
             version: GRAPH_BYTES_VERSION.to_be(),
             adjacency_matrix_dimension: self.adjacency_matrix.dimension().to_be(),
             adjacency_matrix_entry_count: self.adjacency_matrix.entry_count().to_be(),
-            is_undirected: (if self.is_undirected { 1u8 } else { 0u8 }).to_be(),
+            is_undirected: u8::from(self.is_undirected).to_be(),
             is_weighted: 0u8.to_be(),
         };
 
@@ -244,14 +244,14 @@ impl Into<Vec<u8>> for Graph {
 }
 
 impl TryFrom<&[u8]> for Graph {
-    type Error = GphrxError;
+    type Error = GraphRoxError;
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
         const GRAPH_BYTES_MAGIC_NUMBER: u32 = 0x7ae71ffd;
         const HEADER_SIZE: usize = std::mem::size_of::<GraphBytesHeader>();
 
         if bytes.len() < HEADER_SIZE {
-            return Err(GphrxError::InvalidFormat(String::from(
+            return Err(GraphRoxError::InvalidFormat(String::from(
                 "Slice is too short to contain Graph header",
             )));
         }
@@ -260,7 +260,7 @@ impl TryFrom<&[u8]> for Graph {
             unsafe { bytes[0..HEADER_SIZE].align_to::<GraphBytesHeader>() };
 
         if head.is_empty() {
-            return Err(GphrxError::InvalidFormat(String::from(
+            return Err(GraphRoxError::InvalidFormat(String::from(
                 "Graph header bytes were unaligned",
             )));
         }
@@ -277,13 +277,13 @@ impl TryFrom<&[u8]> for Graph {
         };
 
         if header.magic_number != GRAPH_BYTES_MAGIC_NUMBER {
-            return Err(GphrxError::InvalidFormat(String::from(
+            return Err(GraphRoxError::InvalidFormat(String::from(
                 "Incorrect magic number",
             )));
         }
 
         if header.version != 1u32 {
-            return Err(GphrxError::InvalidFormat(String::from(
+            return Err(GraphRoxError::InvalidFormat(String::from(
                 "Unrecognized Graph version",
             )));
         }
@@ -293,7 +293,7 @@ impl TryFrom<&[u8]> for Graph {
             + HEADER_SIZE;
 
         if bytes.len() < expected_buffer_size {
-            return Err(GphrxError::InvalidFormat(String::from(
+            return Err(GraphRoxError::InvalidFormat(String::from(
                 "Slice is too short to contain all expected graph edges",
             )));
         }
@@ -310,7 +310,7 @@ impl TryFrom<&[u8]> for Graph {
 
             let row_start = col_end;
             let row_end = row_start + std::mem::size_of::<u64>();
-            
+
             let col_slice = &bytes[col_start..col_end];
             let row_slice = &bytes[row_start..row_end];
 

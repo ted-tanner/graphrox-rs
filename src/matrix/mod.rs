@@ -4,9 +4,11 @@ mod csr_matrix;
 pub use csr_adjacency_matrix::CsrAdjacencyMatrix;
 pub use csr_matrix::CsrMatrix;
 
+use core::fmt::Debug;
+
 use crate::util::Numeric;
 
-pub trait Matrix<T: Numeric>: ToString {
+pub trait Matrix<T: Numeric>: Debug + ToString {
     fn dimension(&self) -> u64;
     fn entry_count(&self) -> u64;
 

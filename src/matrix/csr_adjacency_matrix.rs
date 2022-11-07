@@ -8,13 +8,19 @@ use std::collections::{HashMap, HashSet};
 use std::iter::{IntoIterator, Iterator};
 use std::string::ToString;
 
-use crate::csr_matrix::Matrix;
+use crate::matrix::Matrix;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CsrAdjacencyMatrix {
     dimension: u64,
     edges_table: HashMap<u64, HashSet<u64>>,
     entry_count: u64,
+}
+
+impl Default for CsrAdjacencyMatrix {
+    fn default() -> Self {
+        CsrAdjacencyMatrix::new()
+    }
 }
 
 impl CsrAdjacencyMatrix {
@@ -42,11 +48,7 @@ impl Matrix<u8> for CsrAdjacencyMatrix {
             None => return 0,
         };
 
-        if row_set.contains(&row) {
-            1
-        } else {
-            0
-        }
+        u8::from(row_set.contains(&row))
     }
 
     fn add_entry(&mut self, entry: u8, col: u64, row: u64) {
@@ -62,7 +64,7 @@ impl Matrix<u8> for CsrAdjacencyMatrix {
             return;
         }
 
-        let row_set = self.edges_table.entry(col).or_insert(HashSet::new());
+        let row_set = self.edges_table.entry(col).or_default();
         let was_added = row_set.insert(row);
 
         if was_added {
@@ -108,36 +110,36 @@ impl ToString for CsrAdjacencyMatrix {
         let mut pos = 0;
         for row in 0..self.dimension {
             unsafe {
-                *(buffer_ptr.add(pos)) = '[' as u8;
+                *(buffer_ptr.add(pos)) = b'[';
                 pos += 1;
 
-                *buffer_ptr.add(pos) = ' ' as u8;
+                *buffer_ptr.add(pos) = b' ';
                 pos += 1;
 
                 for col in 0..(self.dimension - 1) {
-                    *buffer_ptr.add(pos) = '0' as u8;
+                    *buffer_ptr.add(pos) = b'0';
                     pos += 1;
 
-                    *buffer_ptr.add(pos) = ',' as u8;
+                    *buffer_ptr.add(pos) = b',';
                     pos += 1;
 
-                    *buffer_ptr.add(pos) = ' ' as u8;
+                    *buffer_ptr.add(pos) = b' ';
                     pos += 1;
                 }
 
-                *buffer_ptr.add(pos) = '0' as u8;
+                *buffer_ptr.add(pos) = b'0';
                 pos += 1;
 
-                *buffer_ptr.add(pos) = ' ' as u8;
+                *buffer_ptr.add(pos) = b' ';
                 pos += 1;
 
-                *buffer_ptr.add(pos) = ']' as u8;
+                *buffer_ptr.add(pos) = b']';
                 pos += 1;
 
-                *buffer_ptr.add(pos) = '\r' as u8;
+                *buffer_ptr.add(pos) = b'\r';
                 pos += 1;
 
-                *buffer_ptr.add(pos) = '\n' as u8;
+                *buffer_ptr.add(pos) = b'\n';
                 pos += 1;
             }
         }
@@ -151,7 +153,7 @@ impl ToString for CsrAdjacencyMatrix {
                     + CHARS_PER_ENTRY * *col as usize;
 
                 unsafe {
-                    *buffer_ptr.add(pos) = '1' as u8;
+                    *buffer_ptr.add(pos) = b'1';
                 }
             }
         }
@@ -194,9 +196,8 @@ impl<'a> Iterator for CsrAdjacencyMatrixIter<'a> {
         loop {
             if let Some(row_iter) = &mut self.row_iter {
                 let row = row_iter.next();
-                match row {
-                    Some(r) => return Some((self.curr_col, *r)),
-                    None => (),
+                if let Some(r) = row {
+                    return Some((self.curr_col, *r));
                 }
             }
 
