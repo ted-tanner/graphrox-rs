@@ -14,6 +14,7 @@ use crate::csr_matrix::Matrix;
 pub struct CsrAdjacencyMatrix {
     dimension: u64,
     edges_table: HashMap<u64, HashSet<u64>>,
+    entry_count: u64,
 }
 
 impl CsrAdjacencyMatrix {
@@ -21,6 +22,7 @@ impl CsrAdjacencyMatrix {
         Self {
             dimension: 0,
             edges_table: HashMap::new(),
+            entry_count: 0,
         }
     }
 }
@@ -28,6 +30,10 @@ impl CsrAdjacencyMatrix {
 impl Matrix<bool> for CsrAdjacencyMatrix {
     fn dimension(&self) -> u64 {
         self.dimension
+    }
+
+    fn entry_count(&self) -> u64 {
+        self.entry_count
     }
 
     fn get_entry(&self, col: u64, row: u64) -> bool {
@@ -53,7 +59,11 @@ impl Matrix<bool> for CsrAdjacencyMatrix {
         }
 
         let row_set = self.edges_table.entry(col).or_insert(HashSet::new());
-        row_set.insert(row);
+        let was_added = row_set.insert(row);
+
+        if was_added {
+            self.entry_count += 1;
+        }
     }
 
     fn delete_entry(&mut self, col: u64, row: u64) {
@@ -62,7 +72,11 @@ impl Matrix<bool> for CsrAdjacencyMatrix {
             None => return,
         };
 
-        row_set.remove(&row);
+        let was_removed = row_set.remove(&row);
+
+        if was_removed {
+            self.entry_count -= 1;
+        }
     }
 }
 

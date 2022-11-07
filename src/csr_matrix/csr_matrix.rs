@@ -4,6 +4,7 @@
 
 use std::collections::hash_map::Iter as HashMapIter;
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::fmt::Display;
 use std::iter::{IntoIterator, Iterator};
 
@@ -14,6 +15,7 @@ use crate::util::Numeric;
 pub struct CsrMatrix<T: Display + Numeric> {
     dimension: u64,
     edges_table: HashMap<u64, HashMap<u64, T>>,
+    entry_count: u64,
 }
 
 impl<T: Display + Numeric> CsrMatrix<T> {
@@ -21,6 +23,7 @@ impl<T: Display + Numeric> CsrMatrix<T> {
         Self {
             dimension: 0,
             edges_table: HashMap::new(),
+            entry_count: 0,
         }
     }
 
@@ -34,9 +37,14 @@ impl<T: Display + Numeric> CsrMatrix<T> {
         }
 
         let row_table = self.edges_table.entry(col).or_insert(HashMap::new());
-        row_table
-            .entry(row)
-            .and_modify(|e| *e = e.add_one())
+        let entry = row_table
+            .entry(row);
+
+        if let Entry::Vacant(_) = entry {
+            self.entry_count += 1;
+        }
+
+        entry.and_modify(|e| *e = e.add_one())
             .or_insert(T::one());
     }
 
@@ -158,6 +166,10 @@ impl<T: Display + Numeric> Matrix<T> for CsrMatrix<T> {
         self.dimension
     }
 
+    fn entry_count(&self) -> u64 {
+        self.entry_count
+    }
+
     fn get_entry(&self, col: u64, row: u64) -> T {
         let row_table = match self.edges_table.get(&col) {
             Some(t) => t,
@@ -184,7 +196,11 @@ impl<T: Display + Numeric> Matrix<T> for CsrMatrix<T> {
         }
 
         let row_table = self.edges_table.entry(col).or_insert(HashMap::new());
-        row_table.insert(row, entry);
+        let addition = row_table.insert(row, entry);
+
+        if let None = addition {
+            self.entry_count += 1;
+        }
     }
 
     fn delete_entry(&mut self, col: u64, row: u64) {
@@ -193,7 +209,11 @@ impl<T: Display + Numeric> Matrix<T> for CsrMatrix<T> {
             None => return,
         };
 
-        row_table.remove(&row);
+        let removal = row_table.remove(&row);
+
+        if let Some(_) = removal {
+            self.entry_count -= 1;
+        }
     }
 }
 
