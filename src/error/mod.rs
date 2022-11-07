@@ -1,4 +1,6 @@
 pub enum GphrxError {
-    NotFound,
-    InvalidFormat,
+    NotFound(String),
+    InvalidFormat(String),
 }
+
+// TODO: impl fmt::Display

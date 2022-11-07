@@ -2,9 +2,9 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
+use std::collections::hash_map::Entry;
 use std::collections::hash_map::Iter as HashMapIter;
 use std::collections::HashMap;
-use std::collections::hash_map::Entry;
 use std::fmt::Display;
 use std::iter::{IntoIterator, Iterator};
 
@@ -37,15 +37,13 @@ impl<T: Display + Numeric> CsrMatrix<T> {
         }
 
         let row_table = self.edges_table.entry(col).or_insert(HashMap::new());
-        let entry = row_table
-            .entry(row);
+        let entry = row_table.entry(row);
 
         if let Entry::Vacant(_) = entry {
             self.entry_count += 1;
         }
 
-        entry.and_modify(|e| *e = e.add_one())
-            .or_insert(T::one());
+        entry.and_modify(|e| *e = e.add_one()).or_insert(T::one());
     }
 
     pub fn to_string_with_precision(&self, decimal_digits: usize) -> String {

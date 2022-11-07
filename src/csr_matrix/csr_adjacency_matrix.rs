@@ -27,7 +27,7 @@ impl CsrAdjacencyMatrix {
     }
 }
 
-impl Matrix<bool> for CsrAdjacencyMatrix {
+impl Matrix<u8> for CsrAdjacencyMatrix {
     fn dimension(&self) -> u64 {
         self.dimension
     }
@@ -36,16 +36,20 @@ impl Matrix<bool> for CsrAdjacencyMatrix {
         self.entry_count
     }
 
-    fn get_entry(&self, col: u64, row: u64) -> bool {
+    fn get_entry(&self, col: u64, row: u64) -> u8 {
         let row_set = match self.edges_table.get(&col) {
             Some(s) => s,
-            None => return false,
+            None => return 0,
         };
 
-        row_set.contains(&row)
+        if row_set.contains(&row) {
+            1
+        } else {
+            0
+        }
     }
 
-    fn add_entry(&mut self, entry: bool, col: u64, row: u64) {
+    fn add_entry(&mut self, entry: u8, col: u64, row: u64) {
         if col + 1 > self.dimension {
             self.dimension = col + 1
         }
@@ -54,7 +58,7 @@ impl Matrix<bool> for CsrAdjacencyMatrix {
             self.dimension = row + 1
         }
 
-        if !entry {
+        if entry == 0 {
             return;
         }
 
