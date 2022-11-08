@@ -209,7 +209,6 @@ impl Graph {
 
         let mut buffer = Vec::with_capacity(buffer_size);
 
-        // TODO: Don't turn header into bytes all at once.
         let header_u8_ptr = (&header as *const GraphBytesHeader) as *const u8;
         let header_bytes = unsafe { as_byte_array(&header) };
 
@@ -259,7 +258,7 @@ impl TryFrom<&[u8]> for Graph {
         let (head, header_slice, _) =
             unsafe { bytes[0..HEADER_SIZE].align_to::<GraphBytesHeader>() };
 
-        if head.is_empty() {
+        if !head.is_empty() {
             return Err(GraphRoxError::InvalidFormat(String::from(
                 "Graph header bytes were unaligned",
             )));
