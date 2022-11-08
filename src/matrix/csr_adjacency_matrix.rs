@@ -1,12 +1,10 @@
-// TODO: Remove these allows once everything is implemented
-#![allow(dead_code)]
-#![allow(unused_variables)]
-
 use std::collections::hash_map::Iter as HashMapIter;
 use std::collections::hash_set::Iter as HashSetIter;
 use std::collections::{HashMap, HashSet};
 use std::hash::BuildHasherDefault;
 use std::iter::{IntoIterator, Iterator};
+use std::mem::MaybeUninit;
+use std::ptr;
 use std::string::ToString;
 
 use crate::hasher::GraphRoxHasher;
@@ -106,54 +104,57 @@ impl ToString for CsrAdjacencyMatrix {
             return String::new();
         }
 
-        let mut buffer = Vec::with_capacity(
+        let mut buffer = MaybeUninit::new(Vec::with_capacity(
             EXTRA_CHARS_PER_ROW_TOTAL * self.dimension as usize
                 + CHARS_PER_ENTRY * (self.dimension * self.dimension) as usize
                 - 2,
-        );
+        ));
 
-        unsafe { buffer.set_len(buffer.capacity()) };
+        let buffer_ptr = unsafe {
+            (*buffer.as_mut_ptr()).set_len((*buffer.as_mut_ptr()).capacity());
+            (*buffer.as_mut_ptr()).as_mut_ptr() as *mut u8
+        };
 
-        let buffer_ptr = buffer.as_mut_ptr() as *mut u8;
-
-        let mut pos = 0;
+        let mut pos: usize = 0;
         for row in 0..self.dimension {
             unsafe {
-                *buffer_ptr.add(pos) = b'[';
+                ptr::write(buffer_ptr.add(pos), b'[');
                 pos += 1;
 
-                *buffer_ptr.add(pos) = b' ';
+                ptr::write(buffer_ptr.add(pos), b' ');
                 pos += 1;
 
-                for col in 0..(self.dimension - 1) {
-                    *buffer_ptr.add(pos) = b'0';
+                for _col in 0..(self.dimension - 1) {
+                    ptr::write(buffer_ptr.add(pos), b'0');
                     pos += 1;
 
-                    *buffer_ptr.add(pos) = b',';
+                    ptr::write(buffer_ptr.add(pos), b',');
                     pos += 1;
 
-                    *buffer_ptr.add(pos) = b' ';
+                    ptr::write(buffer_ptr.add(pos), b' ');
                     pos += 1;
                 }
 
-                *buffer_ptr.add(pos) = b'0';
+                ptr::write(buffer_ptr.add(pos), b'0');
                 pos += 1;
 
-                *buffer_ptr.add(pos) = b' ';
+                ptr::write(buffer_ptr.add(pos), b' ');
                 pos += 1;
 
-                *buffer_ptr.add(pos) = b']';
+                ptr::write(buffer_ptr.add(pos), b']');
                 pos += 1;
 
                 if row != self.dimension - 1 {
-                    *buffer_ptr.add(pos) = b'\r';
+                    ptr::write(buffer_ptr.add(pos), b'\r');
                     pos += 1;
 
-                    *buffer_ptr.add(pos) = b'\n';
+                    ptr::write(buffer_ptr.add(pos), b'\n');
                     pos += 1;
                 }
             }
         }
+
+        let buffer = unsafe { buffer.assume_init() };
 
         let chars_per_row = EXTRA_CHARS_PER_ROW_TOTAL + self.dimension as usize * CHARS_PER_ENTRY;
 

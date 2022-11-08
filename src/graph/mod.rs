@@ -1,7 +1,3 @@
-// TODO: Remove these allows once everything is implemented
-#![allow(dead_code)]
-#![allow(unused_variables)]
-
 use std::convert::{Into, TryFrom};
 
 use crate::error::GraphRoxError;
@@ -110,13 +106,10 @@ impl Graph {
         let are_edge_blocks_padded = self.vertex_count() % block_dimension != 0;
 
         let mut blocks_per_row = self.vertex_count() / block_dimension;
-
         if are_edge_blocks_padded {
             blocks_per_row += 1;
         }
-
         let blocks_per_row = blocks_per_row;
-        let block_count = blocks_per_row * blocks_per_row;
 
         let mut occurrence_matrix: CsrMatrix<u64> = CsrMatrix::new();
 
@@ -162,17 +155,6 @@ impl Graph {
             block_dimension
         };
 
-        let are_edge_blocks_padded = self.vertex_count() % block_dimension != 0;
-
-        let mut blocks_per_row = self.vertex_count() / block_dimension;
-
-        if are_edge_blocks_padded {
-            blocks_per_row += 1;
-        }
-
-        let blocks_per_row = blocks_per_row;
-        let block_count = blocks_per_row * blocks_per_row;
-
         let avg_pool_matrix = self.find_avg_pool_matrix(block_dimension);
 
         let mut approx_graph = if self.is_undirected {
@@ -209,9 +191,7 @@ impl Graph {
 
         let mut buffer = Vec::with_capacity(buffer_size);
 
-        let header_u8_ptr = (&header as *const GraphBytesHeader) as *const u8;
         let header_bytes = unsafe { as_byte_array(&header) };
-
         for byte in header_bytes {
             buffer.push(*byte);
         }

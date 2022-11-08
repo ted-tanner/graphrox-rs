@@ -1,14 +1,8 @@
 use std::hash::Hasher;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct GraphRoxHasher {
     current: u32,
-}
-
-impl Default for GraphRoxHasher {
-    fn default() -> Self {
-        Self { current: 0 }
-    }
 }
 
 impl Hasher for GraphRoxHasher {
@@ -31,7 +25,7 @@ impl Hasher for GraphRoxHasher {
     fn write(&mut self, bytes: &[u8]) {
         let value = if bytes.len() < 4 {
             let mut padded_bytes = vec![0; 4];
-            padded_bytes[0..bytes.len()].clone_from_slice(&bytes);
+            padded_bytes[0..bytes.len()].clone_from_slice(bytes);
             unsafe { u32::from_ne_bytes(padded_bytes[0..4].try_into().unwrap_unchecked()) }
         } else {
             unsafe { u32::from_ne_bytes(bytes[0..4].try_into().unwrap_unchecked()) }
