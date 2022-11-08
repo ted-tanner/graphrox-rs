@@ -105,6 +105,8 @@ impl ToString for CsrAdjacencyMatrix {
                 + CHARS_PER_ENTRY * (self.dimension * self.dimension) as usize,
         );
 
+        unsafe { buffer.set_len(buffer.capacity()) };
+
         let buffer_ptr = buffer.as_mut_ptr() as *mut u8;
 
         let mut pos = 0;

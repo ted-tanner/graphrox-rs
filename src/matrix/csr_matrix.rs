@@ -94,6 +94,8 @@ impl<T: Debug + Display + Numeric> CsrMatrix<T> {
                 + chars_per_entry * (self.dimension * self.dimension) as usize,
         );
 
+        unsafe { buffer.set_len(buffer.capacity()) };
+
         let buffer_ptr = buffer.as_mut_ptr() as *mut u8;
 
         let mut pos = 0;
