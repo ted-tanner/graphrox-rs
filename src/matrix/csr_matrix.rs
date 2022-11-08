@@ -3,23 +3,17 @@ use std::collections::hash_map::Entry;
 use std::collections::hash_map::Iter as HashMapIter;
 use std::collections::HashMap;
 use std::fmt::Display;
-use std::hash::BuildHasherDefault;
 use std::iter::{IntoIterator, Iterator};
 use std::mem::MaybeUninit;
 use std::ptr;
 
-use crate::hasher::GraphRoxHasher;
 use crate::matrix::Matrix;
 use crate::util::Numeric;
 
 #[derive(Clone, Debug)]
 pub struct CsrMatrix<T: Debug + Display + Numeric> {
     dimension: u64,
-    edges_table: HashMap<
-        u64,
-        HashMap<u64, T, BuildHasherDefault<GraphRoxHasher>>,
-        BuildHasherDefault<GraphRoxHasher>,
-    >,
+    edges_table: HashMap<u64, HashMap<u64, T>>,
     entry_count: u64,
 }
 
@@ -270,7 +264,7 @@ impl<'a, T: Debug + Display + Numeric> IntoIterator for &'a CsrMatrix<T> {
 
 pub struct CsrMatrixIter<'a, T: Debug + Display + Numeric> {
     matrix: &'a CsrMatrix<T>,
-    col_iter: HashMapIter<'a, u64, HashMap<u64, T, BuildHasherDefault<GraphRoxHasher>>>,
+    col_iter: HashMapIter<'a, u64, HashMap<u64, T>>,
     row_iter: Option<HashMapIter<'a, u64, T>>,
     curr_col: u64,
 }
