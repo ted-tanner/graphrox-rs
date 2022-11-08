@@ -102,7 +102,7 @@ impl ToString for CsrAdjacencyMatrix {
 
         let mut buffer = Vec::with_capacity(
             EXTRA_CHARS_PER_ROW_TOTAL * self.dimension as usize
-                + CHARS_PER_ENTRY * (self.dimension * self.dimension) as usize,
+                + CHARS_PER_ENTRY * (self.dimension * self.dimension) as usize - 2,
         );
 
         unsafe { buffer.set_len(buffer.capacity()) };
@@ -137,12 +137,14 @@ impl ToString for CsrAdjacencyMatrix {
 
                 *buffer_ptr.add(pos) = b']';
                 pos += 1;
-
-                *buffer_ptr.add(pos) = b'\r';
-                pos += 1;
-
-                *buffer_ptr.add(pos) = b'\n';
-                pos += 1;
+                
+                if row != self.dimension - 1 {
+                    *buffer_ptr.add(pos) = b'\r';
+                    pos += 1;
+                    
+                    *buffer_ptr.add(pos) = b'\n';
+                    pos += 1;
+                }
             }
         }
 
