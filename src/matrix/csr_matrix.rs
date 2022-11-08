@@ -91,7 +91,8 @@ impl<T: Debug + Display + Numeric> CsrMatrix<T> {
 
         let mut buffer = Vec::with_capacity(
             EXTRA_CHARS_PER_ROW_TOTAL * self.dimension as usize
-                + chars_per_entry * (self.dimension * self.dimension) as usize - 2,
+                + chars_per_entry * (self.dimension * self.dimension) as usize
+                - 2,
         );
 
         unsafe { buffer.set_len(buffer.capacity()) };
@@ -101,7 +102,7 @@ impl<T: Debug + Display + Numeric> CsrMatrix<T> {
         let mut pos = 0;
         for row in 0..self.dimension {
             unsafe {
-                *(buffer_ptr.add(pos)) = b'[';
+                *buffer_ptr.add(pos) = b'[';
                 pos += 1;
 
                 *buffer_ptr.add(pos) = b' ';
@@ -132,7 +133,7 @@ impl<T: Debug + Display + Numeric> CsrMatrix<T> {
                 if row != self.dimension - 1 {
                     *buffer_ptr.add(pos) = b'\r';
                     pos += 1;
-                    
+
                     *buffer_ptr.add(pos) = b'\n';
                     pos += 1;
                 }
