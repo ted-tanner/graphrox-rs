@@ -3,27 +3,26 @@ use std::num::Wrapping;
 
 #[derive(Clone, Default)]
 pub struct GraphRoxHasher {
-    current: u32,
+    current: Wrapping<u32>,
 }
 
 impl Hasher for GraphRoxHasher {
-    #[inline(always)]
+    #[inline]
     fn write_u64(&mut self, value: u64) {
         self.write_u32(value as u32);
     }
 
-    #[inline(always)]
-
+    #[inline]
     fn write_u32(&mut self, value: u32) {
-        let mut value = Wrapping(value ^ (value >> 16));
-        value *= 0x21f0aaad;
-        value ^= value >> 15;
-        value *= 0xd35a2d97;
-        value ^= value >> 15;
-
-        self.current = value.0;
+        self.current = Wrapping(value);
+        self.current ^= self.current >> 16;
+        self.current *= 0x21f0aaad;
+        self.current ^= self.current >> 15;
+        self.current *= 0xd35a2d97;
+        self.current ^= self.current >> 15;
     }
 
+    #[inline]
     fn write(&mut self, bytes: &[u8]) {
         let value = if bytes.len() < 4 {
             let mut padded_bytes = vec![0; 4];
@@ -36,7 +35,8 @@ impl Hasher for GraphRoxHasher {
         self.write_u32(value);
     }
 
+    #[inline]
     fn finish(&self) -> u64 {
-        self.current as u64
+        self.current.0 as u64
     }
 }
