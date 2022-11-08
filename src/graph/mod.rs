@@ -1,4 +1,6 @@
 use std::convert::{Into, TryFrom};
+use std::mem;
+use std::slice;
 
 use crate::error::GraphRoxError;
 use crate::matrix::{CsrAdjacencyMatrix, CsrMatrix, Matrix};
@@ -186,12 +188,12 @@ impl Graph {
         };
 
         let buffer_size = (self.adjacency_matrix.entry_count() * 2) as usize
-            * std::mem::size_of::<u64>()
-            + std::mem::size_of::<GraphBytesHeader>();
+            * mem::size_of::<u64>()
+            + mem::size_of::<GraphBytesHeader>();
 
         let mut buffer = Vec::with_capacity(buffer_size);
 
-        let header_bytes = unsafe { as_byte_array(&header) };
+        let header_bytes = unsafe { as_byte_slice(&header) };
         for byte in header_bytes {
             buffer.push(*byte);
         }
@@ -200,8 +202,8 @@ impl Graph {
             let col_be = col.to_be();
             let row_be = row.to_be();
 
-            let col_bytes = unsafe { as_byte_array(&col_be) };
-            let row_bytes = unsafe { as_byte_array(&row_be) };
+            let col_bytes = unsafe { as_byte_slice(&col_be) };
+            let row_bytes = unsafe { as_byte_slice(&row_be) };
 
             for byte in col_bytes {
                 buffer.push(*byte);
@@ -227,7 +229,7 @@ impl TryFrom<&[u8]> for Graph {
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
         const GRAPH_BYTES_MAGIC_NUMBER: u32 = 0x7ae71ffd;
-        const HEADER_SIZE: usize = std::mem::size_of::<GraphBytesHeader>();
+        const HEADER_SIZE: usize = mem::size_of::<GraphBytesHeader>();
 
         if bytes.len() < HEADER_SIZE {
             return Err(GraphRoxError::InvalidFormat(String::from(
@@ -268,7 +270,7 @@ impl TryFrom<&[u8]> for Graph {
         }
 
         let expected_buffer_size = (header.adjacency_matrix_entry_count * 2) as usize
-            * std::mem::size_of::<u64>()
+            * mem::size_of::<u64>()
             + HEADER_SIZE;
 
         if bytes.len() < expected_buffer_size {
@@ -283,12 +285,12 @@ impl TryFrom<&[u8]> for Graph {
             Graph::new_undirected()
         };
 
-        for pos in (HEADER_SIZE..expected_buffer_size).step_by(std::mem::size_of::<u64>() * 2) {
+        for pos in (HEADER_SIZE..expected_buffer_size).step_by(mem::size_of::<u64>() * 2) {
             let col_start = pos;
-            let col_end = col_start + std::mem::size_of::<u64>();
+            let col_end = col_start + mem::size_of::<u64>();
 
             let row_start = col_end;
-            let row_end = row_start + std::mem::size_of::<u64>();
+            let row_end = row_start + mem::size_of::<u64>();
 
             let col_slice = &bytes[col_start..col_end];
             let row_slice = &bytes[row_start..row_end];
@@ -309,7 +311,6 @@ impl TryFrom<&[u8]> for Graph {
     }
 }
 
-// Adapted from https://stackoverflow.com/questions/28127165/how-to-convert-struct-to-u8
-unsafe fn as_byte_array<T: Sized>(p: &T) -> &[u8] {
-    std::slice::from_raw_parts((p as *const T) as *const u8, std::mem::size_of::<T>())
+unsafe fn as_byte_slice<T: Sized>(item: &T) -> &[u8] {
+    slice::from_raw_parts((item as *const T) as *const u8, mem::size_of::<T>())
 }
