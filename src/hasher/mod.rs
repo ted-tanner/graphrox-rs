@@ -1,4 +1,5 @@
 use std::hash::Hasher;
+use std::num::Wrapping;
 
 #[derive(Clone, Default)]
 pub struct GraphRoxHasher {
@@ -12,14 +13,15 @@ impl Hasher for GraphRoxHasher {
     }
 
     #[inline(always)]
+
     fn write_u32(&mut self, value: u32) {
-        let mut value = value ^ (value >> 16);
+        let mut value = Wrapping(value ^ (value >> 16));
         value *= 0x21f0aaad;
         value ^= value >> 15;
         value *= 0xd35a2d97;
         value ^= value >> 15;
 
-        self.current = value;
+        self.current = value.0;
     }
 
     fn write(&mut self, bytes: &[u8]) {
