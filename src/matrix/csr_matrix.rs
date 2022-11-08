@@ -91,6 +91,15 @@ impl<T: Debug + Display + Numeric> CsrMatrix<T> {
 
         let entry_size = entry_size;
 
+        // One for the digit in front of the decimal
+        let smallest_entry_chars = 1 + if T::has_decimal() {
+            // One for the decimal, one for each decimal digit
+            1 + decimal_digits
+        } else {
+            0
+        };
+        let entry_left_padding = entry_size - smallest_entry_chars;
+
         let chars_per_entry = entry_size + 2;
 
         let mut buffer = MaybeUninit::new(Vec::with_capacity(
@@ -113,24 +122,28 @@ impl<T: Debug + Display + Numeric> CsrMatrix<T> {
                 ptr::write(buffer_ptr.add(pos), b' ');
                 pos += 1;
 
-                for _col in 0..(self.dimension - 1) {
-                    for _character in 0..entry_size {
-                        ptr::write(buffer_ptr.add(pos), b' ');
+                for col in 0..self.dimension {
+                    for char_pos in 0..entry_size {
+                        let c = if char_pos < entry_left_padding {
+                            b' '
+                        } else if char_pos == entry_left_padding + 1 {
+                            b'.'
+                        } else {
+                            b'0'
+                        };
+
+                        ptr::write(buffer_ptr.add(pos), c);
                         pos += 1;
                     }
 
-                    ptr::write(buffer_ptr.add(pos), b',');
-                    pos += 1;
+                    if col != self.dimension - 1 {
+                        ptr::write(buffer_ptr.add(pos), b',');
+                        pos += 1;
+                    }
 
                     ptr::write(buffer_ptr.add(pos), b' ');
                     pos += 1;
                 }
-
-                ptr::write(buffer_ptr.add(pos), b'0');
-                pos += 1;
-
-                ptr::write(buffer_ptr.add(pos), b' ');
-                pos += 1;
 
                 ptr::write(buffer_ptr.add(pos), b']');
                 pos += 1;
@@ -147,6 +160,7 @@ impl<T: Debug + Display + Numeric> CsrMatrix<T> {
 
         let buffer = unsafe { buffer.assume_init() };
 
+        // Minus one for the removed trailing comma
         let chars_per_row = EXTRA_CHARS_PER_ROW_TOTAL + self.dimension as usize * chars_per_entry;
 
         for (col, row_table) in self.edges_table.iter() {

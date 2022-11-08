@@ -125,6 +125,9 @@ impl Graph {
 
         let mut avg_pool_matrix = CsrMatrix::new();
 
+        // Set dimension
+        avg_pool_matrix.add_entry(0.0, blocks_per_row - 1, 0);
+
         let block_size = block_dimension * block_dimension;
         for col in 0..blocks_per_row {
             for row in 0..blocks_per_row {
@@ -157,6 +160,14 @@ impl Graph {
             block_dimension
         };
 
+        let are_edge_blocks_padded = self.vertex_count() % block_dimension != 0;
+
+        let mut blocks_per_row = self.vertex_count() / block_dimension;
+        if are_edge_blocks_padded {
+            blocks_per_row += 1;
+        }
+        let blocks_per_row = blocks_per_row;
+
         let avg_pool_matrix = self.find_avg_pool_matrix(block_dimension);
 
         let mut approx_graph = if self.is_undirected {
@@ -164,6 +175,9 @@ impl Graph {
         } else {
             Self::new_directed()
         };
+
+        // Set dimension
+        approx_graph.add_vertex(blocks_per_row - 1, None);
 
         for (entry, col, row) in &avg_pool_matrix {
             if entry >= threshold {

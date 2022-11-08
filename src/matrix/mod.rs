@@ -1,5 +1,5 @@
-mod csr_adjacency_matrix;
-mod csr_matrix;
+pub(crate) mod csr_adjacency_matrix;
+pub(crate) mod csr_matrix;
 
 pub use csr_adjacency_matrix::CsrAdjacencyMatrix;
 pub use csr_matrix::CsrMatrix;
