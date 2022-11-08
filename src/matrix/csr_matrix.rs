@@ -7,15 +7,21 @@ use std::collections::hash_map::Entry;
 use std::collections::hash_map::Iter as HashMapIter;
 use std::collections::HashMap;
 use std::fmt::Display;
+use std::hash::BuildHasherDefault;
 use std::iter::{IntoIterator, Iterator};
 
+use crate::hasher::GraphRoxHasher;
 use crate::matrix::Matrix;
 use crate::util::Numeric;
 
 #[derive(Clone, Debug)]
 pub struct CsrMatrix<T: Debug + Display + Numeric> {
     dimension: u64,
-    edges_table: HashMap<u64, HashMap<u64, T>>,
+    edges_table: HashMap<
+        u64,
+        HashMap<u64, T, BuildHasherDefault<GraphRoxHasher>>,
+        BuildHasherDefault<GraphRoxHasher>,
+    >,
     entry_count: u64,
 }
 
@@ -29,7 +35,7 @@ impl<T: Debug + Display + Numeric> CsrMatrix<T> {
     pub fn new() -> Self {
         Self {
             dimension: 0,
-            edges_table: HashMap::new(),
+            edges_table: HashMap::default(),
             entry_count: 0,
         }
     }
@@ -251,7 +257,7 @@ impl<'a, T: Debug + Display + Numeric> IntoIterator for &'a CsrMatrix<T> {
 
 pub struct CsrMatrixIter<'a, T: Debug + Display + Numeric> {
     matrix: &'a CsrMatrix<T>,
-    col_iter: HashMapIter<'a, u64, HashMap<u64, T>>,
+    col_iter: HashMapIter<'a, u64, HashMap<u64, T, BuildHasherDefault<GraphRoxHasher>>>,
     row_iter: Option<HashMapIter<'a, u64, T>>,
     curr_col: u64,
 }

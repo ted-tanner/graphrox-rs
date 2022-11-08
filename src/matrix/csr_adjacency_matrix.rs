@@ -5,15 +5,21 @@
 use std::collections::hash_map::Iter as HashMapIter;
 use std::collections::hash_set::Iter as HashSetIter;
 use std::collections::{HashMap, HashSet};
+use std::hash::BuildHasherDefault;
 use std::iter::{IntoIterator, Iterator};
 use std::string::ToString;
 
+use crate::hasher::GraphRoxHasher;
 use crate::matrix::Matrix;
 
 #[derive(Clone, Debug)]
 pub struct CsrAdjacencyMatrix {
     dimension: u64,
-    edges_table: HashMap<u64, HashSet<u64>>,
+    edges_table: HashMap<
+        u64,
+        HashSet<u64, BuildHasherDefault<GraphRoxHasher>>,
+        BuildHasherDefault<GraphRoxHasher>,
+    >,
     entry_count: u64,
 }
 
@@ -27,7 +33,7 @@ impl CsrAdjacencyMatrix {
     pub fn new() -> Self {
         Self {
             dimension: 0,
-            edges_table: HashMap::new(),
+            edges_table: HashMap::default(),
             entry_count: 0,
         }
     }
@@ -185,7 +191,7 @@ impl<'a> IntoIterator for &'a CsrAdjacencyMatrix {
 
 pub struct CsrAdjacencyMatrixIter<'a> {
     matrix: &'a CsrAdjacencyMatrix,
-    col_iter: HashMapIter<'a, u64, HashSet<u64>>,
+    col_iter: HashMapIter<'a, u64, HashSet<u64, BuildHasherDefault<GraphRoxHasher>>>,
     row_iter: Option<HashSetIter<'a, u64>>,
     curr_col: u64,
 }
