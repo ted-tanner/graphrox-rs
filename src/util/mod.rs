@@ -1,3 +1,12 @@
+use std::mem;
+use std::slice;
+
+pub const MIN_THRESHOLD_DIVISOR_POWER_TEN: u32 = 17;
+
+pub unsafe fn as_byte_slice<T: Sized>(item: &T) -> &[u8] {
+    slice::from_raw_parts((item as *const T) as *const u8, mem::size_of::<T>())
+}
+
 pub trait Numeric: PartialOrd + Copy {
     fn min() -> Self;
     fn zero() -> Self;
