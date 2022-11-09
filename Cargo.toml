@@ -1,5 +1,11 @@
-[package]
-name = "graphrox"
+[workspace]
+
+members = [
+    "graphrox-rs",
+    "graphrox-c",
+]
+
+[workspace.package]
 authors = ["Tanner Davies"]
 version = "0.1.0"
 edition = "2021"

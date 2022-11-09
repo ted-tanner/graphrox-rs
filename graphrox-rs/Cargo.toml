@@ -1,0 +1,11 @@
+[package]
+name = "graphrox"
+authors.workspace = true
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+license.workspace = true
+
+[lib]
+name = "graphrox"
+crate-type = ["rlib"]
