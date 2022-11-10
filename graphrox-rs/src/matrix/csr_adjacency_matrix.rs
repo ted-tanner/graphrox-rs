@@ -231,3 +231,164 @@ impl<'a> Iterator for CsrAdjacencyMatrixIter<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_matrix() {
+        let matrix = CsrAdjacencyMatrix::new();
+
+        assert_eq!(matrix.dimension, 0);
+        assert_eq!(matrix.entry_count, 0);
+        assert_eq!(matrix.edges_table.len(), 0);
+
+        let matrix = CsrAdjacencyMatrix::default();
+
+        assert_eq!(matrix.dimension, 0);
+        assert_eq!(matrix.entry_count, 0);
+        assert_eq!(matrix.edges_table.len(), 0);
+    }
+
+    #[test]
+    fn test_get_dimension() {
+        let mut matrix = CsrAdjacencyMatrix::new();
+
+        assert_eq!(matrix.dimension(), matrix.dimension);
+        assert_eq!(matrix.dimension(), 0);
+
+        matrix.add_entry(1, 0, 0);
+
+        assert_eq!(matrix.dimension(), matrix.dimension);
+        assert_eq!(matrix.dimension(), 1);
+
+        matrix.add_entry(1, 4, 7);
+        matrix.add_entry(1, 4, 7);
+
+        assert_eq!(matrix.dimension(), matrix.dimension);
+        assert_eq!(matrix.dimension(), 8);
+
+        matrix.add_entry(0, 100, 1);
+
+        assert_eq!(matrix.dimension(), matrix.dimension);
+        assert_eq!(matrix.dimension(), 101);
+    }
+
+    #[test]
+    fn test_get_entry_count() {
+        let mut matrix = CsrAdjacencyMatrix::new();
+
+        assert_eq!(matrix.entry_count(), matrix.entry_count);
+        assert_eq!(matrix.entry_count(), 0);
+
+        matrix.add_entry(0, 5, 8);
+        matrix.add_entry(0, 0, 0);
+        matrix.add_entry(0, 27, 13);
+
+        assert_eq!(matrix.entry_count(), matrix.entry_count);
+        assert_eq!(matrix.entry_count(), 0);
+
+        matrix.add_entry(1, 0, 0);
+
+        assert_eq!(matrix.entry_count(), matrix.entry_count);
+        assert_eq!(matrix.entry_count(), 1);
+
+        matrix.add_entry(1, 100, 1);
+        matrix.add_entry(1, 100, 1);
+
+        assert_eq!(matrix.entry_count(), matrix.entry_count);
+        assert_eq!(matrix.entry_count(), 2);
+
+        matrix.add_entry(1, 100, 2);
+        matrix.add_entry(1, 1, 99);
+
+        assert_eq!(matrix.entry_count(), matrix.entry_count);
+        assert_eq!(matrix.entry_count(), 4);
+    }
+
+    #[test]
+    fn test_get_entry() {
+        let mut matrix = CsrAdjacencyMatrix::new();
+
+        assert_eq!(matrix.get_entry(5, 8), 0);
+        matrix.add_entry(0, 5, 8);
+        assert_eq!(matrix.get_entry(5, 8), 0);
+
+        matrix.add_entry(1, 5, 8);
+        assert_eq!(matrix.get_entry(5, 8), 1);
+
+        assert_eq!(matrix.get_entry(8, 5), 0);
+        matrix.add_entry(1, 8, 5);
+        assert_eq!(matrix.get_entry(8, 5), 1);
+    }
+
+    #[test]
+    fn test_add_entry() {
+        let mut matrix = CsrAdjacencyMatrix::new();
+
+        assert_eq!(matrix.get_entry(5, 8), 0);
+        assert_eq!(matrix.entry_count, 0);
+        assert_eq!(matrix.dimension, 0);
+        assert_eq!(matrix.edges_table.len(), 0);
+        assert_eq!(matrix.edges_table.get(&5), None);
+        
+        matrix.add_entry(0, 5, 8);
+        assert_eq!(matrix.get_entry(5, 8), 0);
+        assert_eq!(matrix.entry_count, 0);
+        assert_eq!(matrix.dimension, 9);
+        assert_eq!(matrix.edges_table.len(), 0);
+        assert_eq!(matrix.edges_table.get(&5), None);
+
+        matrix.add_entry(1, 5, 8);
+        assert_eq!(matrix.get_entry(5, 8), 1);
+        assert_eq!(matrix.entry_count, 1);
+        assert_eq!(matrix.dimension, 9);
+        assert_eq!(matrix.edges_table.len(), 1);
+        assert_eq!(matrix.edges_table.get(&5).unwrap().len(), 1);
+
+        matrix.add_entry(1, 5, 9);
+        assert_eq!(matrix.get_entry(5, 9), 1);
+        assert_eq!(matrix.entry_count, 2);
+        assert_eq!(matrix.dimension, 10);
+        assert_eq!(matrix.edges_table.len(), 1);
+        assert_eq!(matrix.edges_table.get(&5).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_delete_entry() {
+        let mut matrix = CsrAdjacencyMatrix::new();
+        
+        matrix.add_entry(1, 5, 8);
+        assert_eq!(matrix.get_entry(5, 8), 1);
+        assert_eq!(matrix.entry_count, 1);
+        assert_eq!(matrix.dimension, 9);
+        assert_eq!(matrix.edges_table.len(), 1);
+        assert_eq!(matrix.edges_table.get(&5).unwrap().len(), 1);
+
+        matrix.delete_entry(5, 8);
+        assert_eq!(matrix.get_entry(5, 8), 0);
+        assert_eq!(matrix.entry_count, 0);
+        assert_eq!(matrix.dimension, 9);
+        assert_eq!(matrix.edges_table.len(), 1);
+        assert_eq!(matrix.edges_table.get(&5).unwrap().len(), 0);
+    }
+
+    #[test]
+    fn test_adjacency_matrix_to_string() {
+        let mut matrix = CsrAdjacencyMatrix::new();
+        
+        matrix.add_entry(1, 0, 0);
+        matrix.add_entry(1, 1, 1);
+        matrix.add_entry(1, 1, 2);
+        matrix.add_entry(1, 2, 1);
+        matrix.add_entry(1, 1, 0);
+
+        let expected = "[ 1, 1, 0 ]\r\n[ 0, 1, 1 ]\r\n[ 0, 1, 0 ]";
+        assert_eq!(expected, matrix.to_string().as_str());
+
+        matrix.delete_entry(1, 1);
+        let expected = "[ 1, 1, 0 ]\r\n[ 0, 0, 1 ]\r\n[ 0, 1, 0 ]";
+        assert_eq!(expected, matrix.to_string().as_str());
+    }
+}
