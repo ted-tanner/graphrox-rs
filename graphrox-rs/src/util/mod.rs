@@ -409,35 +409,3 @@ impl Numeric for f64 {
         (*self as i128).to_string().len()
     }
 }
-
-impl Numeric for bool {
-    #[inline(always)]
-    fn min() -> Self {
-        false
-    }
-
-    #[inline(always)]
-    fn zero() -> Self {
-        false
-    }
-
-    #[inline(always)]
-    fn one() -> Self {
-        true
-    }
-
-    #[inline(always)]
-    fn has_decimal() -> bool {
-        false
-    }
-
-    #[inline(always)]
-    fn add_one(&self) -> Self {
-        true
-    }
-
-    #[inline(always)]
-    fn integral_digit_count(&self) -> usize {
-        0
-    }
-}
