@@ -1,20 +1,16 @@
-// TODO: Remove
-#![allow(dead_code)]
-#![allow(unused_imports)]
-#![allow(unused_variables)]
-
 use std::convert::{Into, TryFrom};
 use std::mem;
+use std::num::Wrapping;
 
 use crate::error::GraphRoxError;
 use crate::graph::standard::StandardGraph;
 use crate::graph::GraphRepresentation;
 use crate::matrix::{CsrMatrix, Matrix};
-use crate::util;
+use crate::util::{self, constants::*};
 
 const COMPRESSED_GRAPH_BYTES_MAGIC_NUMBER: u32 = 0x71ff7aed;
 const COMPRESSED_GRAPH_BYTES_VERSION: u32 = 1;
-const THRESHOLD_TO_UINT_MULTIPLIER: u64 = 1 * 10u64.pow(util::MIN_THRESHOLD_DIVISOR_POWER_TEN);
+const THRESHOLD_TO_UINT_MULTIPLIER: u64 = 10u64.pow(MIN_THRESHOLD_DIVISOR_POWER_TEN);
 
 #[repr(C, packed)]
 struct CompressedGraphBytesHeader {
@@ -22,8 +18,8 @@ struct CompressedGraphBytesHeader {
     version: u32,
     adjacency_matrix_dimension: u64,
     adjacency_matrix_entry_count: u64,
-    block_dimension: u64,
     threshold_uint: u64,
+    edge_count: u64,
     vertex_count: u64,
     is_undirected: u8,
 }
@@ -31,15 +27,42 @@ struct CompressedGraphBytesHeader {
 #[derive(Clone, Debug)]
 pub struct CompressedGraph {
     is_undirected: bool,
-    block_dimension: u64,
     threshold: f64,
+    edge_count: u64,
     vertex_count: u64,
     adjacency_matrix: CsrMatrix<u64>,
 }
 
 impl CompressedGraph {
     pub fn decompress(&self) -> StandardGraph {
-        todo!();
+        let mut graph = if self.is_undirected {
+            StandardGraph::new_undirected()
+        } else {
+            StandardGraph::new_directed()
+        };
+
+        // Set graph adjacency matrix dimension
+        graph.add_vertex(self.vertex_count - 1, None);
+
+        for (entry, col, row) in &self.adjacency_matrix {
+            let mut curr = Wrapping(1);
+            for i in 0..64 {
+                if entry & curr.0 == curr.0 {
+                    // These expensive integer multiplications/divisions/moduli will be optimized to
+                    // inexpensive bitwise operations by the compiler because COMPRESSION_BLOCK_DIMENSION
+                    // is a power of two.
+                    let absolute_col =
+                        col * COMPRESSION_BLOCK_DIMENSION + i as u64 % COMPRESSION_BLOCK_DIMENSION;
+                    let absolute_row =
+                        row * COMPRESSION_BLOCK_DIMENSION + i as u64 / COMPRESSION_BLOCK_DIMENSION;
+                    graph.add_edge(absolute_col, absolute_row);
+                }
+
+                curr <<= 1;
+            }
+        }
+
+        graph
     }
 }
 
@@ -57,8 +80,8 @@ impl GraphRepresentation for CompressedGraph {
     }
 
     fn does_edge_exist(&self, from_vertex_id: u64, to_vertex_id: u64) -> bool {
-        let col = from_vertex_id / self.block_dimension;
-        let row = to_vertex_id / self.block_dimension;
+        let col = from_vertex_id / COMPRESSION_BLOCK_DIMENSION;
+        let row = to_vertex_id / COMPRESSION_BLOCK_DIMENSION;
 
         let entry = self.adjacency_matrix.get_entry(col, row);
 
@@ -66,10 +89,10 @@ impl GraphRepresentation for CompressedGraph {
             return false;
         }
 
-        let col_pos_in_entry = from_vertex_id % self.block_dimension;
-        let row_pos_in_entry = to_vertex_id % self.block_dimension;
+        let col_pos_in_entry = from_vertex_id % COMPRESSION_BLOCK_DIMENSION;
+        let row_pos_in_entry = to_vertex_id % COMPRESSION_BLOCK_DIMENSION;
 
-        let pos_in_entry = self.block_dimension * row_pos_in_entry + col_pos_in_entry;
+        let pos_in_entry = COMPRESSION_BLOCK_DIMENSION * row_pos_in_entry + col_pos_in_entry;
         let bit_at_pos = (entry >> pos_in_entry) & 1;
 
         bit_at_pos == 1
@@ -81,8 +104,8 @@ impl GraphRepresentation for CompressedGraph {
             version: COMPRESSED_GRAPH_BYTES_VERSION.to_be(),
             adjacency_matrix_dimension: self.adjacency_matrix.dimension().to_be(),
             adjacency_matrix_entry_count: self.adjacency_matrix.entry_count().to_be(),
-            block_dimension: self.block_dimension.to_be(),
             threshold_uint: ((self.threshold * THRESHOLD_TO_UINT_MULTIPLIER as f64) as u64).to_be(),
+            edge_count: self.edge_count.to_be(),
             vertex_count: self.vertex_count.to_be(),
             is_undirected: u8::from(self.is_undirected).to_be(),
         };
@@ -124,6 +147,7 @@ impl GraphRepresentation for CompressedGraph {
     }
 }
 
+#[allow(clippy::from_over_into)]
 impl Into<Vec<u8>> for CompressedGraph {
     fn into(self) -> Vec<u8> {
         self.encode_to_bytes()
@@ -158,8 +182,8 @@ impl TryFrom<&[u8]> for CompressedGraph {
             adjacency_matrix_entry_count: u64::from_be(
                 header_slice[0].adjacency_matrix_entry_count,
             ),
-            block_dimension: u64::from_be(header_slice[0].block_dimension),
             threshold_uint: u64::from_be(header_slice[0].threshold_uint),
+            edge_count: u64::from_be(header_slice[0].edge_count),
             vertex_count: u64::from_be(header_slice[0].vertex_count),
             is_undirected: u8::from_be(header_slice[0].is_undirected),
         };
@@ -182,6 +206,7 @@ impl TryFrom<&[u8]> for CompressedGraph {
             * mem::size_of::<u64>()
             + HEADER_SIZE;
 
+        #[allow(clippy::comparison_chain)]
         if bytes.len() < expected_buffer_size {
             return Err(GraphRoxError::InvalidFormat(String::from(
                 "Slice is too short to contain all expected graph edges",
@@ -192,11 +217,8 @@ impl TryFrom<&[u8]> for CompressedGraph {
             )));
         }
 
-        let mut compressed_graph_builder = CompressedGraphBuilder::new(
-            header.is_undirected == 1,
-            header.block_dimension,
-            threshold,
-        );
+        let mut compressed_graph_builder =
+            CompressedGraphBuilder::new(header.is_undirected == 1, header.vertex_count, threshold);
 
         for pos in (HEADER_SIZE..expected_buffer_size).step_by(mem::size_of::<u64>() * 3) {
             let entry_start = pos;
@@ -234,13 +256,13 @@ pub struct CompressedGraphBuilder {
 }
 
 impl CompressedGraphBuilder {
-    pub fn new(is_undirected: bool, block_dimension: u64, threshold: f64) -> Self {
+    pub fn new(is_undirected: bool, vertex_count: u64, threshold: f64) -> Self {
         Self {
             graph: CompressedGraph {
                 is_undirected,
-                block_dimension,
                 threshold,
-                vertex_count: 0,
+                edge_count: 0,
+                vertex_count: vertex_count,
                 adjacency_matrix: CsrMatrix::default(),
             },
         }
@@ -253,7 +275,7 @@ impl CompressedGraphBuilder {
         row: u64,
         hamming_weight: Option<u64>,
     ) {
-        self.graph.vertex_count += if let Some(w) = hamming_weight {
+        self.graph.edge_count += if let Some(w) = hamming_weight {
             w
         } else {
             find_hamming_weight(entry)
@@ -273,26 +295,24 @@ impl CompressedGraphBuilder {
     }
 }
 
+#[allow(clippy::from_over_into)]
 impl Into<CompressedGraph> for CompressedGraphBuilder {
     fn into(self) -> CompressedGraph {
         self.finish()
     }
 }
 
+#[inline]
 fn find_hamming_weight(num: u64) -> u64 {
     let mut weight = 0;
-    let mut curr = 1;
+    let mut curr = Wrapping(1);
 
-    for _ in 0..63 {
-        if num & curr == curr {
+    for _ in 0..64 {
+        if num & curr.0 == curr.0 {
             weight += 1;
         }
 
-        curr *= 2;
-    }
-
-    if num & curr == curr {
-        weight += 1;
+        curr <<= 1;
     }
 
     weight

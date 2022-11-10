@@ -2,14 +2,14 @@ use std::convert::{Into, TryFrom};
 use std::mem;
 
 use crate::error::GraphRoxError;
-use crate::graph::compressed::CompressedGraph;
+use crate::graph::compressed::{CompressedGraph, CompressedGraphBuilder};
 use crate::graph::GraphRepresentation;
 use crate::matrix::{CsrAdjacencyMatrix, CsrMatrix, Matrix};
-use crate::util;
+use crate::util::{self, constants::*};
 
 const GRAPH_BYTES_MAGIC_NUMBER: u32 = 0x7ae71ffd;
 const GRAPH_BYTES_VERSION: u32 = 1;
-const MIN_THRESHOLD: f64 = 1.0f64 / (10u64.pow(util::MIN_THRESHOLD_DIVISOR_POWER_TEN) as f64);
+const MIN_THRESHOLD: f64 = 1.0f64 / (10u64.pow(MIN_THRESHOLD_DIVISOR_POWER_TEN) as f64);
 
 #[repr(C, packed)]
 struct GraphBytesHeader {
@@ -176,8 +176,52 @@ impl StandardGraph {
         approx_graph
     }
 
-    pub fn compress(&self) -> CompressedGraph {
-        todo!();
+    pub fn compress(&self, threshold: f64) -> CompressedGraph {
+        let mut builder =
+            CompressedGraphBuilder::new(self.is_undirected, self.vertex_count(), threshold);
+
+        let are_edge_blocks_padded = self.vertex_count() % COMPRESSION_BLOCK_DIMENSION != 0;
+        let mut blocks_per_row = self.vertex_count() / COMPRESSION_BLOCK_DIMENSION;
+        if are_edge_blocks_padded {
+            blocks_per_row += 1;
+        }
+        let blocks_per_row = blocks_per_row;
+
+        builder.set_min_adjacency_matrix_dimension(blocks_per_row);
+
+        let avg_pool_matrix = self.find_avg_pool_matrix(COMPRESSION_BLOCK_DIMENSION);
+        for (entry, col, row) in &avg_pool_matrix {
+            if entry >= threshold {
+                let mut compressed_entry = 0;
+                let mut nodes_in_entry = 0;
+
+                let row_base = row * COMPRESSION_BLOCK_DIMENSION;
+                let col_base = col * COMPRESSION_BLOCK_DIMENSION;
+
+                let mut pos_in_compressed_entry = 1;
+                for row in 0..COMPRESSION_BLOCK_DIMENSION {
+                    for col in 0..COMPRESSION_BLOCK_DIMENSION {
+                        if self.does_edge_exist(col_base + col, row_base + row) {
+                            compressed_entry |= pos_in_compressed_entry;
+                            nodes_in_entry += 1;
+                        }
+
+                        if pos_in_compressed_entry != 0x8000000000000000 {
+                            pos_in_compressed_entry <<= 1;
+                        }
+                    }
+                }
+
+                builder.add_adjacency_matrix_entry(
+                    compressed_entry,
+                    col,
+                    row,
+                    Some(nodes_in_entry),
+                );
+            }
+        }
+
+        builder.finish()
     }
 }
 
@@ -241,6 +285,7 @@ impl GraphRepresentation for StandardGraph {
     }
 }
 
+#[allow(clippy::from_over_into)]
 impl Into<Vec<u8>> for StandardGraph {
     fn into(self) -> Vec<u8> {
         self.encode_to_bytes()
@@ -295,6 +340,7 @@ impl TryFrom<&[u8]> for StandardGraph {
             * mem::size_of::<u64>()
             + HEADER_SIZE;
 
+        #[allow(clippy::comparison_chain)]
         if bytes.len() < expected_buffer_size {
             return Err(GraphRoxError::InvalidFormat(String::from(
                 "Slice is too short to contain all expected graph edges",
