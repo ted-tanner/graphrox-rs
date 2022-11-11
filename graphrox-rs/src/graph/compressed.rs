@@ -496,16 +496,13 @@ mod tests {
         let builder = CompressedGraphBuilder::new(true, 47, 23.7);
         assert_eq!(builder.graph.threshold, 1.0);
 
-        let builder = CompressedGraphBuilder::new(true, 47, 23.7);
-        assert_eq!(builder.graph.threshold, 1.0);
-
         let builder = CompressedGraphBuilder::new(true, 47, -53.9);
         assert_eq!(builder.graph.threshold, GRAPH_APPROXIMATION_MIN_THRESHOLD);
     }
 
     #[test]
     fn test_compressed_graph_builder_add_adjacency_matrix_entry() {
-        let mut builder = CompressedGraphBuilder::new(true, 10, 0.42);
+        let mut builder = CompressedGraphBuilder::new(false, 10, 0.42);
 
         builder.add_adjacency_matrix_entry(0x00000000000000ff, 2, 1, None);
         assert_eq!(builder.graph.edge_count, 8);
@@ -533,6 +530,48 @@ mod tests {
 
         builder.set_min_adjacency_matrix_dimension(40);
         assert_eq!(builder.graph.adjacency_matrix.dimension(), 40);
+    }
+
+    #[test]
+    fn test_compressed_graph_builder_finish() {
+        let mut builder = CompressedGraphBuilder::new(false, 10, 0.07);
+
+        builder.set_min_adjacency_matrix_dimension(7);
+        builder.add_adjacency_matrix_entry(u64::MAX, 1, 1, None);
+
+        let builder_is_undirected = builder.graph.is_undirected;
+        let builder_threshold = builder.graph.threshold;
+        let builder_edge_count = builder.graph.edge_count;
+        let builder_vertex_count = builder.graph.vertex_count;
+        let builder_dimension = builder.graph.adjacency_matrix.dimension();
+        let builder_entry_count = builder.graph.adjacency_matrix.entry_count();
+        
+        let graph = builder.finish();
+
+        assert_eq!(builder_is_undirected, graph.is_undirected);
+        assert_eq!(builder_threshold, graph.threshold );
+        assert_eq!(builder_edge_count, graph.edge_count);
+        assert_eq!(builder_vertex_count, graph.vertex_count);
+        assert_eq!(builder_dimension, graph.adjacency_matrix.dimension());
+        assert_eq!(builder_entry_count, graph.adjacency_matrix.entry_count());
+
+        assert!(!graph.does_edge_exist(8, 7));
+        assert!(!graph.does_edge_exist(7, 8));
+        assert!(!graph.does_edge_exist(15, 16));
+        assert!(!graph.does_edge_exist(16, 15));
+        assert!(!graph.does_edge_exist(7, 15));
+        assert!(!graph.does_edge_exist(8, 16));
+        assert!(!graph.does_edge_exist(15, 7));
+        assert!(!graph.does_edge_exist(16, 8));
+
+        assert!(graph.does_edge_exist(8, 8));
+        assert!(graph.does_edge_exist(15, 15));
+        assert!(graph.does_edge_exist(15, 8));
+        assert!(graph.does_edge_exist(8, 15));
+
+        assert!(graph.does_edge_exist(10, 8));
+        assert!(graph.does_edge_exist(10, 10));
+        assert!(graph.does_edge_exist(14, 15));
     }
 
     #[test]
