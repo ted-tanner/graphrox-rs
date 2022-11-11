@@ -82,7 +82,7 @@ impl<T: Debug + Display + Numeric> CsrSquareMatrix<T> {
                     if val.lt(&lowest) {
                         lowest = *val;
                     }
-                }   
+                }
             }
         }
 
@@ -182,12 +182,8 @@ impl<T: Debug + Display + Numeric> CsrSquareMatrix<T> {
                     } else {
                         highest.integral_digit_count()
                     };
-                    
-                    let mut temp = format!(
-                        "{number: >width$}.",
-                        number = value,
-                        width = width,
-                    );
+
+                    let mut temp = format!("{number: >width$}.", number = value, width = width,);
 
                     for _ in 0..decimal_digits {
                         temp.push('0');
@@ -586,6 +582,14 @@ mod tests {
 
         let expected = "[  0, -1 ]\r\n[  0,  0 ]";
         assert_eq!(expected, matrix.to_string().as_str());
+
+        let matrix: CsrSquareMatrix<f64> = CsrSquareMatrix::new();
+        let expected = "";
+        assert_eq!(expected, matrix.to_string().as_str());
+
+        let matrix: CsrSquareMatrix<u64> = CsrSquareMatrix::new();
+        let expected = "";
+        assert_eq!(expected, matrix.to_string().as_str());
     }
 
     #[test]
@@ -603,7 +607,7 @@ mod tests {
 
         let expected =
             "[ 1.000, 1.000, 0.000 ]\r\n[ 0.000, 1.000, 1.000 ]\r\n[ 0.000, 9.000, 0.000 ]";
-        assert_eq!(expected, matrix. to_string_with_precision(3).as_str());
+        assert_eq!(expected, matrix.to_string_with_precision(3).as_str());
 
         matrix.zero_entry(1, 1);
         let expected = "[ 1, 1, 0 ]\r\n[ 0, 0, 1 ]\r\n[ 0, 9, 0 ]";
@@ -626,7 +630,8 @@ mod tests {
         assert_eq!(expected, matrix.to_string_with_precision(3).as_str());
 
         matrix.set_entry(-10.12, 2, 2);
-        let expected = "[   1.3,   1.7,   0.0 ]\r\n[   0.0,   0.0,   0.8 ]\r\n[   0.0,   1.0, -10.1 ]";
+        let expected =
+            "[   1.3,   1.7,   0.0 ]\r\n[   0.0,   0.0,   0.8 ]\r\n[   0.0,   1.0, -10.1 ]";
         assert_eq!(expected, matrix.to_string_with_precision(1).as_str());
 
         let mut matrix = CsrSquareMatrix::new();
@@ -645,6 +650,14 @@ mod tests {
 
         let expected = "[  0, -1 ]\r\n[  0,  0 ]";
         assert_eq!(expected, matrix.to_string_with_precision(0).as_str());
+
+        let matrix: CsrSquareMatrix<f64> = CsrSquareMatrix::new();
+        let expected = "";
+        assert_eq!(expected, matrix.to_string_with_precision(4).as_str());
+
+        let matrix: CsrSquareMatrix<u64> = CsrSquareMatrix::new();
+        let expected = "";
+        assert_eq!(expected, matrix.to_string_with_precision(4).as_str());
     }
 
     #[test]

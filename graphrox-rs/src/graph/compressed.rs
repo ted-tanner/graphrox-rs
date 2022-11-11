@@ -65,10 +65,6 @@ impl CompressedGraph {
         graph
     }
 
-    pub fn edge_count(&self) -> u64 {
-        self.edge_count
-    }
-
     pub fn threshold(&self) -> f64 {
         self.threshold
     }
@@ -81,6 +77,10 @@ impl GraphRepresentation for CompressedGraph {
 
     fn vertex_count(&self) -> u64 {
         self.vertex_count
+    }
+
+    fn edge_count(&self) -> u64 {
+        self.edge_count
     }
 
     fn matrix_representation_string(&self) -> String {

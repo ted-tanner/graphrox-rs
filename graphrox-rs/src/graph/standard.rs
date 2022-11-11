@@ -234,6 +234,10 @@ impl GraphRepresentation for StandardGraph {
         self.adjacency_matrix.dimension()
     }
 
+    fn edge_count(&self) -> u64 {
+        self.adjacency_matrix.entry_count()
+    }
+
     fn matrix_representation_string(&self) -> String {
         self.adjacency_matrix.to_string()
     }
@@ -438,6 +442,30 @@ mod tests {
 
         graph.add_edge(12, 13);
         assert_eq!(graph.vertex_count(), 14);
+    }
+
+    #[test]
+    fn test_standard_graph_edge_count() {
+        let mut graph = StandardGraph::new_undirected();
+        graph.add_edge(1, 3);
+        assert_eq!(graph.edge_count(), 2);
+
+        graph.add_edge(1, 3);
+        graph.add_edge(3, 1);
+        assert_eq!(graph.edge_count(), 2);
+
+        graph.add_edge(0, 3);
+        assert_eq!(graph.edge_count(), 4);
+
+        let mut graph = StandardGraph::new_directed();
+        graph.add_edge(1, 3);
+        assert_eq!(graph.edge_count(), 1);
+
+        graph.add_edge(1, 3);
+        assert_eq!(graph.edge_count(), 1);
+
+        graph.add_edge(0, 3);
+        assert_eq!(graph.edge_count(), 2);
     }
 
     #[test]
@@ -685,10 +713,22 @@ mod tests {
         assert_eq!(avg_pool_matrix.dimension(), 2);
         assert_eq!(avg_pool_matrix.entry_count(), 4);
 
-        assert_eq!((avg_pool_matrix.get_entry(0, 0) * 100.0).round() / 100.0, 0.32);
-        assert_eq!((avg_pool_matrix.get_entry(0, 1) * 100.0).round() / 100.0, 0.20);
-        assert_eq!((avg_pool_matrix.get_entry(1, 0) * 100.0).round() / 100.0, 0.20);
-        assert_eq!((avg_pool_matrix.get_entry(1, 1) * 100.0).round() / 100.0, 0.28);
+        assert_eq!(
+            (avg_pool_matrix.get_entry(0, 0) * 100.0).round() / 100.0,
+            0.32
+        );
+        assert_eq!(
+            (avg_pool_matrix.get_entry(0, 1) * 100.0).round() / 100.0,
+            0.20
+        );
+        assert_eq!(
+            (avg_pool_matrix.get_entry(1, 0) * 100.0).round() / 100.0,
+            0.20
+        );
+        assert_eq!(
+            (avg_pool_matrix.get_entry(1, 1) * 100.0).round() / 100.0,
+            0.28
+        );
 
         let mut graph = StandardGraph::new_directed();
 
@@ -707,11 +747,80 @@ mod tests {
         assert_eq!(avg_pool_matrix.dimension(), 3);
         assert_eq!(avg_pool_matrix.entry_count(), 5);
 
-        assert_eq!((avg_pool_matrix.get_entry(0, 0) * 100.0).round() / 100.0, 0.44);
-        assert_eq!((avg_pool_matrix.get_entry(0, 2) * 100.0).round() / 100.0, 0.11);
-        assert_eq!((avg_pool_matrix.get_entry(1, 0) * 100.0).round() / 100.0, 0.22);
-        assert_eq!((avg_pool_matrix.get_entry(1, 1) * 100.0).round() / 100.0, 0.11);
-        assert_eq!((avg_pool_matrix.get_entry(2, 2) * 100.0).round() / 100.0, 0.11);
+        assert_eq!(
+            (avg_pool_matrix.get_entry(0, 0) * 100.0).round() / 100.0,
+            0.44
+        );
+        assert_eq!(
+            (avg_pool_matrix.get_entry(0, 2) * 100.0).round() / 100.0,
+            0.11
+        );
+        assert_eq!(
+            (avg_pool_matrix.get_entry(1, 0) * 100.0).round() / 100.0,
+            0.22
+        );
+        assert_eq!(
+            (avg_pool_matrix.get_entry(1, 1) * 100.0).round() / 100.0,
+            0.11
+        );
+        assert_eq!(
+            (avg_pool_matrix.get_entry(2, 2) * 100.0).round() / 100.0,
+            0.11
+        );
+
+        graph.add_vertex(8, None);
+        let avg_pool_matrix = graph.find_avg_pool_matrix(3);
+
+        assert_eq!(avg_pool_matrix.dimension(), 3);
+        assert_eq!(avg_pool_matrix.entry_count(), 5);
+
+        assert_eq!(
+            (avg_pool_matrix.get_entry(0, 0) * 100.0).round() / 100.0,
+            0.44
+        );
+        assert_eq!(
+            (avg_pool_matrix.get_entry(0, 2) * 100.0).round() / 100.0,
+            0.11
+        );
+        assert_eq!(
+            (avg_pool_matrix.get_entry(1, 0) * 100.0).round() / 100.0,
+            0.22
+        );
+        assert_eq!(
+            (avg_pool_matrix.get_entry(1, 1) * 100.0).round() / 100.0,
+            0.11
+        );
+        assert_eq!(
+            (avg_pool_matrix.get_entry(2, 2) * 100.0).round() / 100.0,
+            0.11
+        );
+
+        graph.add_vertex(9, None);
+        let avg_pool_matrix = graph.find_avg_pool_matrix(3);
+
+        assert_eq!(avg_pool_matrix.dimension(), 4);
+        assert_eq!(avg_pool_matrix.entry_count(), 5);
+
+        assert_eq!(
+            (avg_pool_matrix.get_entry(0, 0) * 100.0).round() / 100.0,
+            0.44
+        );
+        assert_eq!(
+            (avg_pool_matrix.get_entry(0, 2) * 100.0).round() / 100.0,
+            0.11
+        );
+        assert_eq!(
+            (avg_pool_matrix.get_entry(1, 0) * 100.0).round() / 100.0,
+            0.22
+        );
+        assert_eq!(
+            (avg_pool_matrix.get_entry(1, 1) * 100.0).round() / 100.0,
+            0.11
+        );
+        assert_eq!(
+            (avg_pool_matrix.get_entry(2, 2) * 100.0).round() / 100.0,
+            0.11
+        );
 
         let graph = StandardGraph::new_directed();
         let avg_pool_matrix = graph.find_avg_pool_matrix(4);
@@ -720,7 +829,7 @@ mod tests {
 
         let mut graph = StandardGraph::new_directed();
         graph.add_vertex(5, None);
-        
+
         let avg_pool_matrix = graph.find_avg_pool_matrix(6);
         assert_eq!(avg_pool_matrix.dimension(), 1);
         assert_eq!(avg_pool_matrix.entry_count(), 0);
@@ -728,19 +837,135 @@ mod tests {
 
         let mut graph = StandardGraph::new_undirected();
         graph.add_edge(0, 1);
-        
+
         let avg_pool_matrix = graph.find_avg_pool_matrix(0);
-        assert_eq!(avg_pool_matrix.dimension(), graph.adjacency_matrix.dimension());
+        assert_eq!(
+            avg_pool_matrix.dimension(),
+            graph.adjacency_matrix.dimension()
+        );
         assert_eq!(avg_pool_matrix.dimension(), 2);
-        assert_eq!(avg_pool_matrix.entry_count(), graph.adjacency_matrix.entry_count());
+        assert_eq!(
+            avg_pool_matrix.entry_count(),
+            graph.adjacency_matrix.entry_count()
+        );
         assert_eq!(avg_pool_matrix.entry_count(), 2);
         assert_eq!(avg_pool_matrix.get_entry(0, 1), 1.0);
         assert_eq!(avg_pool_matrix.get_entry(1, 0), 1.0);
     }
 
-    // For approximation and avg_pool_matrix, make sure approximating small graphs
-    // using large block dimensions doesn't cause problems. Also test thresholds
-    // get clamped
+    #[test]
+    fn test_approximate() {
+        let mut graph = StandardGraph::new_undirected();
+
+        let to_1_edges = [0u64, 2, 4, 7, 3];
+        let to_5_edges = [6u64, 8, 0, 1, 5, 4, 2];
+        graph.add_vertex(1, Some(&to_1_edges));
+        graph.add_vertex(5, Some(&to_5_edges));
+
+        graph.add_edge(7, 8);
+
+        let approx_graph = graph.approximate(5, 0.25);
+
+        assert_eq!(approx_graph.is_undirected(), graph.is_undirected());
+        assert_eq!(approx_graph.adjacency_matrix.dimension(), 2);
+        assert_eq!(approx_graph.adjacency_matrix.entry_count(), 2);
+        
+        assert!(approx_graph.does_edge_exist(0, 0));
+        assert!(approx_graph.does_edge_exist(1, 1));
+
+        let mut graph = StandardGraph::new_directed();
+
+        graph.add_edge(0, 1);
+        graph.add_edge(1, 1);
+        graph.add_edge(2, 1);
+        graph.add_edge(2, 0);
+        graph.add_edge(3, 2);
+        graph.add_edge(3, 1);
+        graph.add_edge(3, 4);
+        graph.add_edge(0, 6);
+        graph.add_edge(6, 6);
+
+        let approx_graph = graph.approximate(3, 0.2);
+
+        assert_eq!(approx_graph.is_undirected(), graph.is_undirected());
+        assert_eq!(approx_graph.adjacency_matrix.dimension(), 3);
+        assert_eq!(approx_graph.edge_count(), 2);
+
+        assert!(approx_graph.does_edge_exist(0, 0));
+        assert!(approx_graph.does_edge_exist(1, 0));
+
+        let approx_graph = graph.approximate(3, 50.7);
+
+        assert_eq!(approx_graph.is_undirected(), graph.is_undirected());
+        assert_eq!(approx_graph.adjacency_matrix.dimension(), 3);
+        assert_eq!(approx_graph.edge_count(), 0);
+
+        let approx_graph = graph.approximate(3, -271.74);
+
+        assert_eq!(approx_graph.is_undirected(), graph.is_undirected());
+        assert_eq!(approx_graph.adjacency_matrix.dimension(), 3);
+        assert_eq!(approx_graph.edge_count(), 5);
+
+        assert!(approx_graph.does_edge_exist(0, 0));
+        assert!(approx_graph.does_edge_exist(0, 2));
+        assert!(approx_graph.does_edge_exist(1, 0));
+        assert!(approx_graph.does_edge_exist(1, 1));
+        assert!(approx_graph.does_edge_exist(2, 2));
+
+        graph.add_vertex(8, None);
+        let approx_graph = graph.approximate(3, 0.2);
+
+        assert_eq!(approx_graph.is_undirected(), graph.is_undirected());
+        assert_eq!(approx_graph.adjacency_matrix.dimension(), 3);
+        assert_eq!(approx_graph.edge_count(), 2);
+
+        assert!(approx_graph.does_edge_exist(0, 0));
+        assert!(approx_graph.does_edge_exist(1, 0));
+
+        graph.add_vertex(9, None);
+        let approx_graph = graph.approximate(3, 0.2);
+
+        assert_eq!(approx_graph.is_undirected(), graph.is_undirected());
+        assert_eq!(approx_graph.adjacency_matrix.dimension(), 4);
+        assert_eq!(approx_graph.edge_count(), 2);
+
+        assert!(approx_graph.does_edge_exist(0, 0));
+        assert!(approx_graph.does_edge_exist(1, 0));
+        
+        let graph = StandardGraph::new_directed();
+        let approx_graph = graph.approximate(4, 0.4);
+        assert_eq!(approx_graph.adjacency_matrix.dimension(), 0);
+        assert_eq!(approx_graph.edge_count(), 0);
+
+        let mut graph = StandardGraph::new_directed();
+        graph.add_vertex(5, None);
+
+        let approx_graph = graph.approximate(6, 0.0);
+        assert_eq!(approx_graph.adjacency_matrix.dimension(), 1);
+        assert_eq!(approx_graph.edge_count(), 0);
+
+        let mut graph = StandardGraph::new_undirected();
+        graph.add_edge(0, 1);
+
+        let approx_graph = graph.approximate(1, 1.0);
+        assert_eq!(
+            approx_graph.adjacency_matrix.dimension(),
+            graph.adjacency_matrix.dimension()
+        );
+        assert_eq!(approx_graph.adjacency_matrix.dimension(), 2);
+        assert_eq!(
+            approx_graph.edge_count(),
+            graph.adjacency_matrix.entry_count()
+        );
+        assert_eq!(approx_graph.edge_count(), 2);
+        assert!(approx_graph.does_edge_exist(0, 1));
+        assert!(approx_graph.does_edge_exist(1, 0));
+    }
+
+    #[test]
+    fn test_standard_graph_compress() {
+        todo!();
+    }
 
     #[test]
     fn test_standard_graph_ref_iterator() {
