@@ -19,6 +19,7 @@ pub unsafe fn as_byte_slice<T: Sized>(item: &T) -> &[u8] {
 }
 
 pub trait Numeric: PartialOrd + Copy {
+    fn max() -> Self;
     fn min() -> Self;
     fn zero() -> Self;
     fn one() -> Self;
@@ -29,6 +30,11 @@ pub trait Numeric: PartialOrd + Copy {
 }
 
 impl Numeric for u8 {
+    #[inline(always)]
+    fn max() -> Self {
+        u8::MAX
+    }
+
     #[inline(always)]
     fn min() -> Self {
         u8::MIN
@@ -62,6 +68,11 @@ impl Numeric for u8 {
 
 impl Numeric for u16 {
     #[inline(always)]
+    fn max() -> Self {
+        u16::MAX
+    }
+
+    #[inline(always)]
     fn min() -> Self {
         u16::MIN
     }
@@ -93,6 +104,11 @@ impl Numeric for u16 {
 }
 
 impl Numeric for u32 {
+    #[inline(always)]
+    fn max() -> Self {
+        u32::MAX
+    }
+
     #[inline(always)]
     fn min() -> Self {
         u32::MIN
@@ -126,6 +142,11 @@ impl Numeric for u32 {
 
 impl Numeric for u64 {
     #[inline(always)]
+    fn max() -> Self {
+        u64::MAX
+    }
+
+    #[inline(always)]
     fn min() -> Self {
         u64::MIN
     }
@@ -157,6 +178,11 @@ impl Numeric for u64 {
 }
 
 impl Numeric for u128 {
+    #[inline(always)]
+    fn max() -> Self {
+        u128::MAX
+    }
+
     #[inline(always)]
     fn min() -> Self {
         u128::MIN
@@ -190,6 +216,11 @@ impl Numeric for u128 {
 
 impl Numeric for i8 {
     #[inline(always)]
+    fn max() -> Self {
+        i8::MAX
+    }
+
+    #[inline(always)]
     fn min() -> Self {
         i8::MIN
     }
@@ -221,6 +252,11 @@ impl Numeric for i8 {
 }
 
 impl Numeric for i16 {
+    #[inline(always)]
+    fn max() -> Self {
+        i16::MAX
+    }
+
     #[inline(always)]
     fn min() -> Self {
         i16::MIN
@@ -254,6 +290,11 @@ impl Numeric for i16 {
 
 impl Numeric for i32 {
     #[inline(always)]
+    fn max() -> Self {
+        i32::MAX
+    }
+
+    #[inline(always)]
     fn min() -> Self {
         i32::MIN
     }
@@ -285,6 +326,11 @@ impl Numeric for i32 {
 }
 
 impl Numeric for i64 {
+    #[inline(always)]
+    fn max() -> Self {
+        i64::MAX
+    }
+
     #[inline(always)]
     fn min() -> Self {
         i64::MIN
@@ -318,6 +364,11 @@ impl Numeric for i64 {
 
 impl Numeric for i128 {
     #[inline(always)]
+    fn max() -> Self {
+        i128::MAX
+    }
+
+    #[inline(always)]
     fn min() -> Self {
         i128::MIN
     }
@@ -350,6 +401,11 @@ impl Numeric for i128 {
 
 impl Numeric for f32 {
     #[inline(always)]
+    fn max() -> Self {
+        f32::MAX
+    }
+
+    #[inline(always)]
     fn min() -> Self {
         f32::MIN
     }
@@ -381,6 +437,11 @@ impl Numeric for f32 {
 }
 
 impl Numeric for f64 {
+    #[inline(always)]
+    fn max() -> Self {
+        f64::MAX
+    }
+
     #[inline(always)]
     fn min() -> Self {
         f64::MIN

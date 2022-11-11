@@ -42,13 +42,13 @@ impl StandardGraph {
         }
     }
 
-    pub fn add_vertex(&mut self, vertex_id: u64, edges: Option<&[u64]>) {
-        let added_edge = if let Some(edges) = edges {
-            for edge in edges {
+    pub fn add_vertex(&mut self, vertex_id: u64, to_edges: Option<&[u64]>) {
+        let added_edge = if let Some(to_edges) = to_edges {
+            for edge in to_edges {
                 self.add_edge(vertex_id, *edge);
             }
 
-            !edges.is_empty()
+            !to_edges.is_empty()
         } else {
             false
         };
@@ -670,6 +670,79 @@ mod tests {
     }
 
     #[test]
+    fn test_find_avg_pool_matrix() {
+        let mut graph = StandardGraph::new_undirected();
+
+        let to_1_edges = [0u64, 2, 4, 7, 3];
+        let to_5_edges = [6u64, 8, 0, 1, 5, 4, 2];
+        graph.add_vertex(1, Some(&to_1_edges));
+        graph.add_vertex(5, Some(&to_5_edges));
+
+        graph.add_edge(7, 8);
+
+        let avg_pool_matrix = graph.find_avg_pool_matrix(5);
+
+        assert_eq!(avg_pool_matrix.dimension(), 2);
+        assert_eq!(avg_pool_matrix.entry_count(), 4);
+
+        assert_eq!((avg_pool_matrix.get_entry(0, 0) * 100.0).round() / 100.0, 0.32);
+        assert_eq!((avg_pool_matrix.get_entry(0, 1) * 100.0).round() / 100.0, 0.20);
+        assert_eq!((avg_pool_matrix.get_entry(1, 0) * 100.0).round() / 100.0, 0.20);
+        assert_eq!((avg_pool_matrix.get_entry(1, 1) * 100.0).round() / 100.0, 0.28);
+
+        let mut graph = StandardGraph::new_directed();
+
+        graph.add_edge(0, 1);
+        graph.add_edge(1, 1);
+        graph.add_edge(2, 1);
+        graph.add_edge(2, 0);
+        graph.add_edge(3, 2);
+        graph.add_edge(3, 1);
+        graph.add_edge(3, 4);
+        graph.add_edge(0, 6);
+        graph.add_edge(6, 6);
+
+        let avg_pool_matrix = graph.find_avg_pool_matrix(3);
+
+        assert_eq!(avg_pool_matrix.dimension(), 3);
+        assert_eq!(avg_pool_matrix.entry_count(), 5);
+
+        assert_eq!((avg_pool_matrix.get_entry(0, 0) * 100.0).round() / 100.0, 0.44);
+        assert_eq!((avg_pool_matrix.get_entry(0, 2) * 100.0).round() / 100.0, 0.11);
+        assert_eq!((avg_pool_matrix.get_entry(1, 0) * 100.0).round() / 100.0, 0.22);
+        assert_eq!((avg_pool_matrix.get_entry(1, 1) * 100.0).round() / 100.0, 0.11);
+        assert_eq!((avg_pool_matrix.get_entry(2, 2) * 100.0).round() / 100.0, 0.11);
+
+        let graph = StandardGraph::new_directed();
+        let avg_pool_matrix = graph.find_avg_pool_matrix(4);
+        assert_eq!(avg_pool_matrix.dimension(), 0);
+        assert_eq!(avg_pool_matrix.entry_count(), 0);
+
+        let mut graph = StandardGraph::new_directed();
+        graph.add_vertex(5, None);
+        
+        let avg_pool_matrix = graph.find_avg_pool_matrix(6);
+        assert_eq!(avg_pool_matrix.dimension(), 1);
+        assert_eq!(avg_pool_matrix.entry_count(), 0);
+        assert_eq!(avg_pool_matrix.get_entry(0, 0), 0.0);
+
+        let mut graph = StandardGraph::new_undirected();
+        graph.add_edge(0, 1);
+        
+        let avg_pool_matrix = graph.find_avg_pool_matrix(0);
+        assert_eq!(avg_pool_matrix.dimension(), graph.adjacency_matrix.dimension());
+        assert_eq!(avg_pool_matrix.dimension(), 2);
+        assert_eq!(avg_pool_matrix.entry_count(), graph.adjacency_matrix.entry_count());
+        assert_eq!(avg_pool_matrix.entry_count(), 2);
+        assert_eq!(avg_pool_matrix.get_entry(0, 1), 1.0);
+        assert_eq!(avg_pool_matrix.get_entry(1, 0), 1.0);
+    }
+
+    // For approximation and avg_pool_matrix, make sure approximating small graphs
+    // using large block dimensions doesn't cause problems. Also test thresholds
+    // get clamped
+
+    #[test]
     fn test_standard_graph_ref_iterator() {
         let mut graph = StandardGraph::new_directed();
 
@@ -705,10 +778,4 @@ mod tests {
         assert!(graph_edges.contains(&(2, 1)));
         assert!(graph_edges.contains(&(1, 0)));
     }
-
-    // TODO
-
-    // For approximation and avg_pool_matrix, make sure approximating small graphs
-    // using large block dimensions doesn't cause problems. Also test thresholds
-    // get clamped
 }

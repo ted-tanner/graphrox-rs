@@ -66,24 +66,37 @@ impl<T: Debug + Display + Numeric> CsrSquareMatrix<T> {
         }
 
         let mut highest = T::min();
+        let mut lowest = T::max();
 
-        for row_table in self.edges_table.values() {
-            for val in row_table.values() {
-                if val.gt(&highest) {
-                    highest = *val;
-                }
+        let edge_table_values = self.edges_table.values();
+
+        if edge_table_values.len() == 0 {
+            highest = T::zero();
+        } else {
+            for row_table in edge_table_values {
+                for val in row_table.values() {
+                    if val.gt(&highest) {
+                        highest = *val;
+                    }
+
+                    if val.lt(&lowest) {
+                        lowest = *val;
+                    }
+                }   
             }
         }
 
-        let highest = highest;
-
-        let mut entry_size = highest.integral_digit_count();
+        let highest_integral_count = highest.integral_digit_count();
+        let lowest_integral_count = lowest.integral_digit_count();
+        let mut entry_size = if highest_integral_count > lowest_integral_count {
+            highest_integral_count
+        } else {
+            lowest_integral_count
+        };
 
         if T::has_decimal() || decimal_digits > 0 {
             entry_size += 1 + decimal_digits;
         }
-
-        let entry_size = entry_size;
 
         // One for the digit in front of the decimal
         let smallest_entry_chars = 1 + if T::has_decimal() || decimal_digits > 0 {
@@ -92,8 +105,8 @@ impl<T: Debug + Display + Numeric> CsrSquareMatrix<T> {
         } else {
             0
         };
-        let entry_left_padding = entry_size - smallest_entry_chars;
 
+        let entry_left_padding = entry_size - smallest_entry_chars;
         let chars_per_entry = entry_size + 2;
 
         let mut buffer = MaybeUninit::new(Vec::with_capacity(
@@ -164,10 +177,16 @@ impl<T: Debug + Display + Numeric> CsrSquareMatrix<T> {
                     + chars_per_entry * *col as usize;
 
                 let num = if !T::has_decimal() && decimal_digits > 0 {
+                    let width = if lowest.lt(&T::zero()) {
+                        highest.integral_digit_count() + 1
+                    } else {
+                        highest.integral_digit_count()
+                    };
+                    
                     let mut temp = format!(
                         "{number: >width$}.",
                         number = value,
-                        width = highest.integral_digit_count(),
+                        width = width,
                     );
 
                     for _ in 0..decimal_digits {
@@ -546,9 +565,26 @@ mod tests {
 
         let mut matrix = CsrSquareMatrix::new();
 
-        matrix.set_entry(100, 1, 1);
+        matrix.set_entry(-100, 1, 1);
         matrix.set_entry(8, 2, 1);
-        let expected = "[   0,   0,   0 ]\r\n[   0, 100,   8 ]\r\n[   0,   0,   0 ]";
+        let expected = "[    0,    0,    0 ]\r\n[    0, -100,    8 ]\r\n[    0,    0,    0 ]";
+        assert_eq!(expected, matrix.to_string().as_str());
+
+        let mut matrix = CsrSquareMatrix::new();
+
+        matrix.set_entry(10, 0, 0);
+        matrix.set_entry(11, 0, 1);
+        matrix.set_entry(12, 1, 0);
+        matrix.set_entry(13, 1, 1);
+
+        let expected = "[ 10, 12 ]\r\n[ 11, 13 ]";
+        assert_eq!(expected, matrix.to_string().as_str());
+
+        let mut matrix = CsrSquareMatrix::new();
+
+        matrix.set_entry(-1, 1, 0);
+
+        let expected = "[  0, -1 ]\r\n[  0,  0 ]";
         assert_eq!(expected, matrix.to_string().as_str());
     }
 
@@ -567,7 +603,7 @@ mod tests {
 
         let expected =
             "[ 1.000, 1.000, 0.000 ]\r\n[ 0.000, 1.000, 1.000 ]\r\n[ 0.000, 9.000, 0.000 ]";
-        assert_eq!(expected, matrix.to_string_with_precision(3).as_str());
+        assert_eq!(expected, matrix. to_string_with_precision(3).as_str());
 
         matrix.zero_entry(1, 1);
         let expected = "[ 1, 1, 0 ]\r\n[ 0, 0, 1 ]\r\n[ 0, 9, 0 ]";
@@ -589,9 +625,26 @@ mod tests {
             "[ 1.300, 1.700, 0.000 ]\r\n[ 0.000, 0.000, 0.847 ]\r\n[ 0.000, 1.000, 0.000 ]";
         assert_eq!(expected, matrix.to_string_with_precision(3).as_str());
 
-        matrix.set_entry(10.12, 2, 2);
-        let expected = "[  1.3,  1.7,  0.0 ]\r\n[  0.0,  0.0,  0.8 ]\r\n[  0.0,  1.0, 10.1 ]";
+        matrix.set_entry(-10.12, 2, 2);
+        let expected = "[   1.3,   1.7,   0.0 ]\r\n[   0.0,   0.0,   0.8 ]\r\n[   0.0,   1.0, -10.1 ]";
         assert_eq!(expected, matrix.to_string_with_precision(1).as_str());
+
+        let mut matrix = CsrSquareMatrix::new();
+
+        matrix.set_entry(10, 0, 0);
+        matrix.set_entry(11, 0, 1);
+        matrix.set_entry(12, 1, 0);
+        matrix.set_entry(13, 1, 1);
+
+        let expected = "[ 10, 12 ]\r\n[ 11, 13 ]";
+        assert_eq!(expected, matrix.to_string_with_precision(0).as_str());
+
+        let mut matrix = CsrSquareMatrix::new();
+
+        matrix.set_entry(-1, 1, 0);
+
+        let expected = "[  0, -1 ]\r\n[  0,  0 ]";
+        assert_eq!(expected, matrix.to_string_with_precision(0).as_str());
     }
 
     #[test]
