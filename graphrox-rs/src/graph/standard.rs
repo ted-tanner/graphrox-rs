@@ -4,12 +4,11 @@ use std::mem;
 use crate::error::GraphRoxError;
 use crate::graph::compressed::{CompressedGraph, CompressedGraphBuilder};
 use crate::graph::GraphRepresentation;
-use crate::matrix::{CsrAdjacencyMatrix, CsrMatrix, Matrix};
+use crate::matrix::{CsrAdjacencyMatrix, CsrSquareMatrix, Matrix};
 use crate::util::{self, constants::*};
 
 const GRAPH_BYTES_MAGIC_NUMBER: u32 = 0x7ae71ffd;
 const GRAPH_BYTES_VERSION: u32 = 1;
-const MIN_THRESHOLD: f64 = 1.0f64 / (10u64.pow(MIN_THRESHOLD_DIVISOR_POWER_TEN) as f64);
 
 #[repr(C, packed)]
 struct GraphBytesHeader {
@@ -80,9 +79,9 @@ impl StandardGraph {
         }
     }
 
-    pub fn find_avg_pool_matrix(&self, block_dimension: u64) -> CsrMatrix<f64> {
+    pub fn find_avg_pool_matrix(&self, block_dimension: u64) -> CsrSquareMatrix<f64> {
         if self.vertex_count() == 0 {
-            return CsrMatrix::new();
+            return CsrSquareMatrix::new();
         }
 
         let block_dimension = if block_dimension < 1 {
@@ -101,7 +100,7 @@ impl StandardGraph {
         }
         let blocks_per_row = blocks_per_row;
 
-        let mut occurrence_matrix: CsrMatrix<u64> = CsrMatrix::new();
+        let mut occurrence_matrix: CsrSquareMatrix<u64> = CsrSquareMatrix::new();
 
         for (col, row) in &self.adjacency_matrix {
             let occurrence_col = col / block_dimension;
@@ -111,7 +110,7 @@ impl StandardGraph {
 
         let occurrence_matrix = occurrence_matrix;
 
-        let mut avg_pool_matrix = CsrMatrix::new();
+        let mut avg_pool_matrix = CsrSquareMatrix::new();
 
         // Set dimension
         avg_pool_matrix.add_entry(0.0, blocks_per_row - 1, 0);
@@ -137,7 +136,7 @@ impl StandardGraph {
         let threshold = if threshold > 1.0 {
             1.0
         } else if threshold <= 0.0 {
-            MIN_THRESHOLD
+            GRAPH_APPROXIMATION_MIN_THRESHOLD
         } else {
             threshold
         };

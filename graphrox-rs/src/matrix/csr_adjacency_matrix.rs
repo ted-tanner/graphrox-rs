@@ -332,7 +332,7 @@ mod tests {
         assert_eq!(matrix.dimension, 0);
         assert_eq!(matrix.edges_table.len(), 0);
         assert_eq!(matrix.edges_table.get(&5), None);
-        
+
         matrix.add_entry(0, 5, 8);
         assert_eq!(matrix.get_entry(5, 8), 0);
         assert_eq!(matrix.entry_count, 0);
@@ -358,7 +358,7 @@ mod tests {
     #[test]
     fn test_delete_entry() {
         let mut matrix = CsrAdjacencyMatrix::new();
-        
+
         matrix.add_entry(1, 5, 8);
         assert_eq!(matrix.get_entry(5, 8), 1);
         assert_eq!(matrix.entry_count, 1);
@@ -377,7 +377,7 @@ mod tests {
     #[test]
     fn test_adjacency_matrix_to_string() {
         let mut matrix = CsrAdjacencyMatrix::new();
-        
+
         matrix.add_entry(1, 0, 0);
         matrix.add_entry(1, 1, 1);
         matrix.add_entry(1, 1, 2);
@@ -390,5 +390,36 @@ mod tests {
         matrix.delete_entry(1, 1);
         let expected = "[ 1, 1, 0 ]\r\n[ 0, 0, 1 ]\r\n[ 0, 1, 0 ]";
         assert_eq!(expected, matrix.to_string().as_str());
+    }
+
+    #[test]
+    fn test_adjacency_matrix_ref_iterator() {
+        let mut matrix = CsrAdjacencyMatrix::new();
+
+        matrix.add_entry(1, 0, 0);
+        matrix.add_entry(1, 1, 1);
+        matrix.add_entry(1, 1, 2);
+        matrix.add_entry(1, 2, 1);
+        matrix.add_entry(1, 1, 0);
+
+        let matrix_entries = &matrix.into_iter().collect::<Vec<_>>();
+
+        assert_eq!(matrix_entries.len() as u64, matrix.entry_count());
+        assert!(matrix_entries.contains(&(0, 0)));
+        assert!(matrix_entries.contains(&(1, 1)));
+        assert!(matrix_entries.contains(&(1, 2)));
+        assert!(matrix_entries.contains(&(2, 1)));
+        assert!(matrix_entries.contains(&(1, 0)));
+
+        matrix.delete_entry(1, 1);
+
+        let matrix_entries = &matrix.into_iter().collect::<Vec<_>>();
+
+        assert_eq!(matrix_entries.len() as u64, matrix.entry_count());
+        assert!(!matrix_entries.contains(&(1, 1)));
+        assert!(matrix_entries.contains(&(0, 0)));
+        assert!(matrix_entries.contains(&(1, 2)));
+        assert!(matrix_entries.contains(&(2, 1)));
+        assert!(matrix_entries.contains(&(1, 0)));
     }
 }

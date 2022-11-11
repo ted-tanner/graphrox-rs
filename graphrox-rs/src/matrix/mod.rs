@@ -1,8 +1,8 @@
-pub(crate) mod csr_adjacency_matrix;
-pub(crate) mod csr_matrix;
+pub mod csr_adjacency_matrix;
+pub mod csr_square_matrix;
 
 pub use csr_adjacency_matrix::CsrAdjacencyMatrix;
-pub use csr_matrix::CsrMatrix;
+pub use csr_square_matrix::CsrSquareMatrix;
 
 use core::fmt::Debug;
 

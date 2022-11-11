@@ -5,7 +5,7 @@ use std::num::Wrapping;
 use crate::error::GraphRoxError;
 use crate::graph::standard::StandardGraph;
 use crate::graph::GraphRepresentation;
-use crate::matrix::{CsrMatrix, Matrix};
+use crate::matrix::{CsrSquareMatrix, Matrix};
 use crate::util::{self, constants::*};
 
 const COMPRESSED_GRAPH_BYTES_MAGIC_NUMBER: u32 = 0x71ff7aed;
@@ -30,7 +30,7 @@ pub struct CompressedGraph {
     threshold: f64,
     edge_count: u64,
     vertex_count: u64,
-    adjacency_matrix: CsrMatrix<u64>,
+    adjacency_matrix: CsrSquareMatrix<u64>,
 }
 
 impl CompressedGraph {
@@ -257,13 +257,24 @@ pub struct CompressedGraphBuilder {
 
 impl CompressedGraphBuilder {
     pub fn new(is_undirected: bool, vertex_count: u64, threshold: f64) -> Self {
+        let threshold = if threshold > 1.0 {
+            1.0
+        } else if threshold <= 0.0 {
+            GRAPH_APPROXIMATION_MIN_THRESHOLD
+        } else {
+            threshold
+        };
+
+        let mut adjacency_matrix = CsrSquareMatrix::default();
+        adjacency_matrix.add_entry(0, vertex_count / COMPRESSION_BLOCK_DIMENSION, 0);
+
         Self {
             graph: CompressedGraph {
                 is_undirected,
                 threshold,
                 edge_count: 0,
                 vertex_count: vertex_count,
-                adjacency_matrix: CsrMatrix::default(),
+                adjacency_matrix,
             },
         }
     }
@@ -340,5 +351,43 @@ mod tests {
         assert_eq!(find_hamming_weight(0x7777777777777777), 48);
         assert_eq!(find_hamming_weight(0xeeeeeeeeeeeeeeee), 48);
         assert_eq!(find_hamming_weight(u64::MAX), 64);
+    }
+
+    #[test]
+    fn test_compressed_graph_is_undirected() {
+        let graph = CompressedGraphBuilder::new(true, 8, 0.3).finish();
+        assert!(graph.is_undirected());
+
+        let graph = CompressedGraphBuilder::new(false, 9, 0.1).finish();
+        assert!(!graph.is_undirected());
+    }
+
+    #[test]
+    fn test_compressed_graph_vertex_count() {
+        let graph = CompressedGraphBuilder::new(true, 8, 0.3).finish();
+        assert_eq!(graph.vertex_count(), 8);
+
+        let graph = CompressedGraphBuilder::new(false, 100, 0.8).finish();
+        assert_eq!(graph.vertex_count(), 100);
+    }
+
+    #[test]
+    fn test_compressed_graph_matrix_representation_string() {
+        let mut graph = CompressedGraphBuilder::new(false, 16, 0.3);
+        graph.add_adjacency_matrix_entry(300, 1, 1, None);
+        graph.add_adjacency_matrix_entry(10, 2, 1, None);
+
+        let graph = graph.finish();
+
+        let expected = "[   0,   0,   0 ]\r\n[   0, 300,  10 ]\r\n[   0,   0,   0 ]";
+        assert_eq!(expected, graph.matrix_representation_string());
+
+        let mut graph = CompressedGraphBuilder::new(false, 27, 0.3);
+        graph.add_adjacency_matrix_entry(9, 1, 1, None);
+
+        let graph = graph.finish();
+
+        let expected = "[ 0, 0, 0, 0 ]\r\n[ 0, 9, 0, 0 ]\r\n[ 0, 0, 0, 0 ]\r\n[ 0, 0, 0, 0 ]";
+        assert_eq!(expected, graph.matrix_representation_string());
     }
 }
