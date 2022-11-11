@@ -49,7 +49,7 @@ impl Matrix<u8> for CsrAdjacencyMatrix {
         u8::from(row_set.contains(&row))
     }
 
-    fn add_entry(&mut self, entry: u8, col: u64, row: u64) {
+    fn set_entry(&mut self, entry: u8, col: u64, row: u64) {
         if col + 1 > self.dimension {
             self.dimension = col + 1
         }
@@ -70,7 +70,7 @@ impl Matrix<u8> for CsrAdjacencyMatrix {
         }
     }
 
-    fn delete_entry(&mut self, col: u64, row: u64) {
+    fn zero_entry(&mut self, col: u64, row: u64) {
         let row_set = match self.edges_table.get_mut(&col) {
             Some(s) => s,
             None => return,
@@ -258,18 +258,18 @@ mod tests {
         assert_eq!(matrix.dimension(), matrix.dimension);
         assert_eq!(matrix.dimension(), 0);
 
-        matrix.add_entry(1, 0, 0);
+        matrix.set_entry(1, 0, 0);
 
         assert_eq!(matrix.dimension(), matrix.dimension);
         assert_eq!(matrix.dimension(), 1);
 
-        matrix.add_entry(1, 4, 7);
-        matrix.add_entry(1, 4, 7);
+        matrix.set_entry(1, 4, 7);
+        matrix.set_entry(1, 4, 7);
 
         assert_eq!(matrix.dimension(), matrix.dimension);
         assert_eq!(matrix.dimension(), 8);
 
-        matrix.add_entry(0, 100, 1);
+        matrix.set_entry(0, 100, 1);
 
         assert_eq!(matrix.dimension(), matrix.dimension);
         assert_eq!(matrix.dimension(), 101);
@@ -282,26 +282,26 @@ mod tests {
         assert_eq!(matrix.entry_count(), matrix.entry_count);
         assert_eq!(matrix.entry_count(), 0);
 
-        matrix.add_entry(0, 5, 8);
-        matrix.add_entry(0, 0, 0);
-        matrix.add_entry(0, 27, 13);
+        matrix.set_entry(0, 5, 8);
+        matrix.set_entry(0, 0, 0);
+        matrix.set_entry(0, 27, 13);
 
         assert_eq!(matrix.entry_count(), matrix.entry_count);
         assert_eq!(matrix.entry_count(), 0);
 
-        matrix.add_entry(1, 0, 0);
+        matrix.set_entry(1, 0, 0);
 
         assert_eq!(matrix.entry_count(), matrix.entry_count);
         assert_eq!(matrix.entry_count(), 1);
 
-        matrix.add_entry(1, 100, 1);
-        matrix.add_entry(1, 100, 1);
+        matrix.set_entry(1, 100, 1);
+        matrix.set_entry(1, 100, 1);
 
         assert_eq!(matrix.entry_count(), matrix.entry_count);
         assert_eq!(matrix.entry_count(), 2);
 
-        matrix.add_entry(1, 100, 2);
-        matrix.add_entry(1, 1, 99);
+        matrix.set_entry(1, 100, 2);
+        matrix.set_entry(1, 1, 99);
 
         assert_eq!(matrix.entry_count(), matrix.entry_count);
         assert_eq!(matrix.entry_count(), 4);
@@ -312,19 +312,19 @@ mod tests {
         let mut matrix = CsrAdjacencyMatrix::new();
 
         assert_eq!(matrix.get_entry(5, 8), 0);
-        matrix.add_entry(0, 5, 8);
+        matrix.set_entry(0, 5, 8);
         assert_eq!(matrix.get_entry(5, 8), 0);
 
-        matrix.add_entry(1, 5, 8);
+        matrix.set_entry(1, 5, 8);
         assert_eq!(matrix.get_entry(5, 8), 1);
 
         assert_eq!(matrix.get_entry(8, 5), 0);
-        matrix.add_entry(1, 8, 5);
+        matrix.set_entry(1, 8, 5);
         assert_eq!(matrix.get_entry(8, 5), 1);
     }
 
     #[test]
-    fn test_add_entry() {
+    fn test_set_entry() {
         let mut matrix = CsrAdjacencyMatrix::new();
 
         assert_eq!(matrix.get_entry(5, 8), 0);
@@ -333,21 +333,21 @@ mod tests {
         assert_eq!(matrix.edges_table.len(), 0);
         assert_eq!(matrix.edges_table.get(&5), None);
 
-        matrix.add_entry(0, 5, 8);
+        matrix.set_entry(0, 5, 8);
         assert_eq!(matrix.get_entry(5, 8), 0);
         assert_eq!(matrix.entry_count, 0);
         assert_eq!(matrix.dimension, 9);
         assert_eq!(matrix.edges_table.len(), 0);
         assert_eq!(matrix.edges_table.get(&5), None);
 
-        matrix.add_entry(1, 5, 8);
+        matrix.set_entry(1, 5, 8);
         assert_eq!(matrix.get_entry(5, 8), 1);
         assert_eq!(matrix.entry_count, 1);
         assert_eq!(matrix.dimension, 9);
         assert_eq!(matrix.edges_table.len(), 1);
         assert_eq!(matrix.edges_table.get(&5).unwrap().len(), 1);
 
-        matrix.add_entry(1, 5, 9);
+        matrix.set_entry(1, 5, 9);
         assert_eq!(matrix.get_entry(5, 9), 1);
         assert_eq!(matrix.entry_count, 2);
         assert_eq!(matrix.dimension, 10);
@@ -356,17 +356,17 @@ mod tests {
     }
 
     #[test]
-    fn test_delete_entry() {
+    fn test_zero_entry() {
         let mut matrix = CsrAdjacencyMatrix::new();
 
-        matrix.add_entry(1, 5, 8);
+        matrix.set_entry(1, 5, 8);
         assert_eq!(matrix.get_entry(5, 8), 1);
         assert_eq!(matrix.entry_count, 1);
         assert_eq!(matrix.dimension, 9);
         assert_eq!(matrix.edges_table.len(), 1);
         assert_eq!(matrix.edges_table.get(&5).unwrap().len(), 1);
 
-        matrix.delete_entry(5, 8);
+        matrix.zero_entry(5, 8);
         assert_eq!(matrix.get_entry(5, 8), 0);
         assert_eq!(matrix.entry_count, 0);
         assert_eq!(matrix.dimension, 9);
@@ -378,16 +378,16 @@ mod tests {
     fn test_adjacency_matrix_to_string() {
         let mut matrix = CsrAdjacencyMatrix::new();
 
-        matrix.add_entry(1, 0, 0);
-        matrix.add_entry(1, 1, 1);
-        matrix.add_entry(1, 1, 2);
-        matrix.add_entry(1, 2, 1);
-        matrix.add_entry(1, 1, 0);
+        matrix.set_entry(1, 0, 0);
+        matrix.set_entry(1, 1, 1);
+        matrix.set_entry(1, 1, 2);
+        matrix.set_entry(1, 2, 1);
+        matrix.set_entry(1, 1, 0);
 
         let expected = "[ 1, 1, 0 ]\r\n[ 0, 1, 1 ]\r\n[ 0, 1, 0 ]";
         assert_eq!(expected, matrix.to_string().as_str());
 
-        matrix.delete_entry(1, 1);
+        matrix.zero_entry(1, 1);
         let expected = "[ 1, 1, 0 ]\r\n[ 0, 0, 1 ]\r\n[ 0, 1, 0 ]";
         assert_eq!(expected, matrix.to_string().as_str());
     }
@@ -396,13 +396,13 @@ mod tests {
     fn test_adjacency_matrix_ref_iterator() {
         let mut matrix = CsrAdjacencyMatrix::new();
 
-        matrix.add_entry(1, 0, 0);
-        matrix.add_entry(1, 1, 1);
-        matrix.add_entry(1, 1, 2);
-        matrix.add_entry(1, 2, 1);
-        matrix.add_entry(1, 1, 0);
+        matrix.set_entry(1, 0, 0);
+        matrix.set_entry(1, 1, 1);
+        matrix.set_entry(1, 1, 2);
+        matrix.set_entry(1, 2, 1);
+        matrix.set_entry(1, 1, 0);
 
-        let matrix_entries = &matrix.into_iter().collect::<Vec<_>>();
+        let matrix_entries = matrix.into_iter().collect::<Vec<_>>();
 
         assert_eq!(matrix_entries.len() as u64, matrix.entry_count());
         assert!(matrix_entries.contains(&(0, 0)));
@@ -411,9 +411,9 @@ mod tests {
         assert!(matrix_entries.contains(&(2, 1)));
         assert!(matrix_entries.contains(&(1, 0)));
 
-        matrix.delete_entry(1, 1);
+        matrix.zero_entry(1, 1);
 
-        let matrix_entries = &matrix.into_iter().collect::<Vec<_>>();
+        let matrix_entries = matrix.into_iter().collect::<Vec<_>>();
 
         assert_eq!(matrix_entries.len() as u64, matrix.entry_count());
         assert!(!matrix_entries.contains(&(1, 1)));

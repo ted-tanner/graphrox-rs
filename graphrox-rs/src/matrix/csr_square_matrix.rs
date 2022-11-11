@@ -222,7 +222,7 @@ impl<T: Debug + Display + Numeric> Matrix<T> for CsrSquareMatrix<T> {
         }
     }
 
-    fn add_entry(&mut self, entry: T, col: u64, row: u64) {
+    fn set_entry(&mut self, entry: T, col: u64, row: u64) {
         if col + 1 > self.dimension {
             self.dimension = col + 1
         }
@@ -243,7 +243,7 @@ impl<T: Debug + Display + Numeric> Matrix<T> for CsrSquareMatrix<T> {
         }
     }
 
-    fn delete_entry(&mut self, col: u64, row: u64) {
+    fn zero_entry(&mut self, col: u64, row: u64) {
         let row_table = match self.edges_table.get_mut(&col) {
             Some(t) => t,
             None => return,
@@ -351,18 +351,18 @@ mod tests {
         assert_eq!(matrix.dimension(), matrix.dimension);
         assert_eq!(matrix.dimension(), 0);
 
-        matrix.add_entry(2.5, 0, 0);
+        matrix.set_entry(2.5, 0, 0);
 
         assert_eq!(matrix.dimension(), matrix.dimension);
         assert_eq!(matrix.dimension(), 1);
 
-        matrix.add_entry(1.0, 4, 7);
-        matrix.add_entry(1.1, 4, 7);
+        matrix.set_entry(1.0, 4, 7);
+        matrix.set_entry(1.1, 4, 7);
 
         assert_eq!(matrix.dimension(), matrix.dimension);
         assert_eq!(matrix.dimension(), 8);
 
-        matrix.add_entry(0.0, 100, 1);
+        matrix.set_entry(0.0, 100, 1);
 
         assert_eq!(matrix.dimension(), matrix.dimension);
         assert_eq!(matrix.dimension(), 101);
@@ -375,26 +375,26 @@ mod tests {
         assert_eq!(matrix.entry_count(), matrix.entry_count);
         assert_eq!(matrix.entry_count(), 0);
 
-        matrix.add_entry(0, 5, 8);
-        matrix.add_entry(0, 0, 0);
-        matrix.add_entry(0, 27, 13);
+        matrix.set_entry(0, 5, 8);
+        matrix.set_entry(0, 0, 0);
+        matrix.set_entry(0, 27, 13);
 
         assert_eq!(matrix.entry_count(), matrix.entry_count);
         assert_eq!(matrix.entry_count(), 0);
 
-        matrix.add_entry(1, 0, 0);
+        matrix.set_entry(1, 0, 0);
 
         assert_eq!(matrix.entry_count(), matrix.entry_count);
         assert_eq!(matrix.entry_count(), 1);
 
-        matrix.add_entry(1, 100, 1);
-        matrix.add_entry(1, 100, 1);
+        matrix.set_entry(1, 100, 1);
+        matrix.set_entry(1, 100, 1);
 
         assert_eq!(matrix.entry_count(), matrix.entry_count);
         assert_eq!(matrix.entry_count(), 2);
 
-        matrix.add_entry(1, 100, 2);
-        matrix.add_entry(1, 1, 99);
+        matrix.set_entry(1, 100, 2);
+        matrix.set_entry(1, 1, 99);
 
         assert_eq!(matrix.entry_count(), matrix.entry_count);
         assert_eq!(matrix.entry_count(), 4);
@@ -405,19 +405,19 @@ mod tests {
         let mut matrix = CsrSquareMatrix::new();
 
         assert_eq!(matrix.get_entry(5, 8), 0.0);
-        matrix.add_entry(0.0, 5, 8);
+        matrix.set_entry(0.0, 5, 8);
         assert_eq!(matrix.get_entry(5, 8), 0.0);
 
-        matrix.add_entry(1.5, 5, 8);
+        matrix.set_entry(1.5, 5, 8);
         assert_eq!(matrix.get_entry(5, 8), 1.5);
 
         assert_eq!(matrix.get_entry(8, 5), 0.0);
-        matrix.add_entry(1.5, 8, 5);
+        matrix.set_entry(1.5, 8, 5);
         assert_eq!(matrix.get_entry(8, 5), 1.5);
     }
 
     #[test]
-    fn test_add_entry() {
+    fn test_set_entry() {
         let mut matrix = CsrSquareMatrix::new();
 
         assert_eq!(matrix.get_entry(5, 8), 0);
@@ -426,28 +426,28 @@ mod tests {
         assert_eq!(matrix.edges_table.len(), 0);
         assert_eq!(matrix.edges_table.get(&5), None);
 
-        matrix.add_entry(0, 5, 8);
+        matrix.set_entry(0, 5, 8);
         assert_eq!(matrix.get_entry(5, 8), 0);
         assert_eq!(matrix.entry_count, 0);
         assert_eq!(matrix.dimension, 9);
         assert_eq!(matrix.edges_table.len(), 0);
         assert_eq!(matrix.edges_table.get(&5), None);
 
-        matrix.add_entry(7, 5, 8);
+        matrix.set_entry(7, 5, 8);
         assert_eq!(matrix.get_entry(5, 8), 7);
         assert_eq!(matrix.entry_count, 1);
         assert_eq!(matrix.dimension, 9);
         assert_eq!(matrix.edges_table.len(), 1);
         assert_eq!(matrix.edges_table.get(&5).unwrap().len(), 1);
 
-        matrix.add_entry(2, 5, 9);
+        matrix.set_entry(2, 5, 9);
         assert_eq!(matrix.get_entry(5, 9), 2);
         assert_eq!(matrix.entry_count, 2);
         assert_eq!(matrix.dimension, 10);
         assert_eq!(matrix.edges_table.len(), 1);
         assert_eq!(matrix.edges_table.get(&5).unwrap().len(), 2);
 
-        matrix.add_entry(3, 5, 9);
+        matrix.set_entry(3, 5, 9);
         assert_eq!(matrix.get_entry(5, 9), 3);
         assert_eq!(matrix.entry_count, 2);
         assert_eq!(matrix.dimension, 10);
@@ -479,7 +479,7 @@ mod tests {
         assert_eq!(matrix.edges_table.len(), 1);
         assert_eq!(matrix.edges_table.get(&5).unwrap().len(), 1);
 
-        matrix.add_entry(78.7, 100, 20);
+        matrix.set_entry(78.7, 100, 20);
         matrix.increment_entry(100, 20);
         assert_eq!(matrix.get_entry(100, 20), 79.7);
         assert_eq!(matrix.entry_count, 2);
@@ -489,17 +489,17 @@ mod tests {
     }
 
     #[test]
-    fn test_delete_entry() {
+    fn test_zero_entry() {
         let mut matrix = CsrSquareMatrix::new();
 
-        matrix.add_entry(9, 5, 8);
+        matrix.set_entry(9, 5, 8);
         assert_eq!(matrix.get_entry(5, 8), 9);
         assert_eq!(matrix.entry_count, 1);
         assert_eq!(matrix.dimension, 9);
         assert_eq!(matrix.edges_table.len(), 1);
         assert_eq!(matrix.edges_table.get(&5).unwrap().len(), 1);
 
-        matrix.delete_entry(5, 8);
+        matrix.zero_entry(5, 8);
         assert_eq!(matrix.get_entry(5, 8), 0);
         assert_eq!(matrix.entry_count, 0);
         assert_eq!(matrix.dimension, 9);
@@ -511,43 +511,43 @@ mod tests {
     fn test_matrix_to_string() {
         let mut matrix = CsrSquareMatrix::new();
 
-        matrix.add_entry(1, 0, 0);
-        matrix.add_entry(1, 1, 1);
-        matrix.add_entry(9, 1, 2);
-        matrix.add_entry(1, 2, 1);
-        matrix.add_entry(1, 1, 0);
+        matrix.set_entry(1, 0, 0);
+        matrix.set_entry(1, 1, 1);
+        matrix.set_entry(9, 1, 2);
+        matrix.set_entry(1, 2, 1);
+        matrix.set_entry(1, 1, 0);
 
         let expected = "[ 1, 1, 0 ]\r\n[ 0, 1, 1 ]\r\n[ 0, 9, 0 ]";
         assert_eq!(expected, matrix.to_string().as_str());
 
-        matrix.delete_entry(1, 1);
+        matrix.zero_entry(1, 1);
         let expected = "[ 1, 1, 0 ]\r\n[ 0, 0, 1 ]\r\n[ 0, 9, 0 ]";
         assert_eq!(expected, matrix.to_string().as_str());
 
         let mut matrix = CsrSquareMatrix::new();
 
-        matrix.add_entry(1.3, 0, 0);
-        matrix.add_entry(2.7, 1, 1);
-        matrix.add_entry(1.0, 1, 2);
-        matrix.add_entry(0.847324, 2, 1);
-        matrix.add_entry(1.7, 1, 0);
+        matrix.set_entry(1.3, 0, 0);
+        matrix.set_entry(2.7, 1, 1);
+        matrix.set_entry(1.0, 1, 2);
+        matrix.set_entry(0.847324, 2, 1);
+        matrix.set_entry(1.7, 1, 0);
 
         let expected = "[ 1.30, 1.70, 0.00 ]\r\n[ 0.00, 2.70, 0.85 ]\r\n[ 0.00, 1.00, 0.00 ]";
         assert_eq!(expected, matrix.to_string().as_str());
 
-        matrix.delete_entry(1, 1);
+        matrix.zero_entry(1, 1);
         let expected = "[ 1.30, 1.70, 0.00 ]\r\n[ 0.00, 0.00, 0.85 ]\r\n[ 0.00, 1.00, 0.00 ]";
         assert_eq!(expected, matrix.to_string().as_str());
 
-        matrix.add_entry(10.12, 2, 2);
+        matrix.set_entry(10.12, 2, 2);
         let expected =
             "[  1.30,  1.70,  0.00 ]\r\n[  0.00,  0.00,  0.85 ]\r\n[  0.00,  1.00, 10.12 ]";
         assert_eq!(expected, matrix.to_string().as_str());
 
         let mut matrix = CsrSquareMatrix::new();
 
-        matrix.add_entry(100, 1, 1);
-        matrix.add_entry(8, 2, 1);
+        matrix.set_entry(100, 1, 1);
+        matrix.set_entry(8, 2, 1);
         let expected = "[   0,   0,   0 ]\r\n[   0, 100,   8 ]\r\n[   0,   0,   0 ]";
         assert_eq!(expected, matrix.to_string().as_str());
     }
@@ -556,11 +556,11 @@ mod tests {
     fn test_matrix_to_string_with_precision() {
         let mut matrix = CsrSquareMatrix::new();
 
-        matrix.add_entry(1, 0, 0);
-        matrix.add_entry(1, 1, 1);
-        matrix.add_entry(9, 1, 2);
-        matrix.add_entry(1, 2, 1);
-        matrix.add_entry(1, 1, 0);
+        matrix.set_entry(1, 0, 0);
+        matrix.set_entry(1, 1, 1);
+        matrix.set_entry(9, 1, 2);
+        matrix.set_entry(1, 2, 1);
+        matrix.set_entry(1, 1, 0);
 
         let expected = "[ 1.0, 1.0, 0.0 ]\r\n[ 0.0, 1.0, 1.0 ]\r\n[ 0.0, 9.0, 0.0 ]";
         assert_eq!(expected, matrix.to_string_with_precision(1).as_str());
@@ -569,27 +569,27 @@ mod tests {
             "[ 1.000, 1.000, 0.000 ]\r\n[ 0.000, 1.000, 1.000 ]\r\n[ 0.000, 9.000, 0.000 ]";
         assert_eq!(expected, matrix.to_string_with_precision(3).as_str());
 
-        matrix.delete_entry(1, 1);
+        matrix.zero_entry(1, 1);
         let expected = "[ 1, 1, 0 ]\r\n[ 0, 0, 1 ]\r\n[ 0, 9, 0 ]";
         assert_eq!(expected, matrix.to_string_with_precision(0).as_str());
 
         let mut matrix = CsrSquareMatrix::new();
 
-        matrix.add_entry(1.3, 0, 0);
-        matrix.add_entry(2.7, 1, 1);
-        matrix.add_entry(1.0, 1, 2);
-        matrix.add_entry(0.847324, 2, 1);
-        matrix.add_entry(1.7, 1, 0);
+        matrix.set_entry(1.3, 0, 0);
+        matrix.set_entry(2.7, 1, 1);
+        matrix.set_entry(1.0, 1, 2);
+        matrix.set_entry(0.847324, 2, 1);
+        matrix.set_entry(1.7, 1, 0);
 
         let expected = "[ 1.30, 1.70, 0.00 ]\r\n[ 0.00, 2.70, 0.85 ]\r\n[ 0.00, 1.00, 0.00 ]";
         assert_eq!(expected, matrix.to_string_with_precision(2).as_str());
 
-        matrix.delete_entry(1, 1);
+        matrix.zero_entry(1, 1);
         let expected =
             "[ 1.300, 1.700, 0.000 ]\r\n[ 0.000, 0.000, 0.847 ]\r\n[ 0.000, 1.000, 0.000 ]";
         assert_eq!(expected, matrix.to_string_with_precision(3).as_str());
 
-        matrix.add_entry(10.12, 2, 2);
+        matrix.set_entry(10.12, 2, 2);
         let expected = "[  1.3,  1.7,  0.0 ]\r\n[  0.0,  0.0,  0.8 ]\r\n[  0.0,  1.0, 10.1 ]";
         assert_eq!(expected, matrix.to_string_with_precision(1).as_str());
     }
@@ -598,11 +598,11 @@ mod tests {
     fn test_matrix_ref_iterator() {
         let mut matrix = CsrSquareMatrix::new();
 
-        matrix.add_entry(1.2, 0, 0);
-        matrix.add_entry(1.5, 1, 1);
-        matrix.add_entry(9.8, 1, 2);
-        matrix.add_entry(1.1, 2, 1);
-        matrix.add_entry(1.1, 1, 0);
+        matrix.set_entry(1.2, 0, 0);
+        matrix.set_entry(1.5, 1, 1);
+        matrix.set_entry(9.8, 1, 2);
+        matrix.set_entry(1.1, 2, 1);
+        matrix.set_entry(1.1, 1, 0);
 
         let matrix_entries = &matrix.into_iter().collect::<Vec<_>>();
 
@@ -613,7 +613,7 @@ mod tests {
         assert!(matrix_entries.contains(&(1.1, 2, 1)));
         assert!(matrix_entries.contains(&(1.1, 1, 0)));
 
-        matrix.delete_entry(1, 1);
+        matrix.zero_entry(1, 1);
 
         let matrix_entries = &matrix.into_iter().collect::<Vec<_>>();
 

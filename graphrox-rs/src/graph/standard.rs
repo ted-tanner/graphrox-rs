@@ -4,6 +4,7 @@ use std::mem;
 use crate::error::GraphRoxError;
 use crate::graph::compressed::{CompressedGraph, CompressedGraphBuilder};
 use crate::graph::GraphRepresentation;
+use crate::matrix::csr_adjacency_matrix::CsrAdjacencyMatrixIter;
 use crate::matrix::{CsrAdjacencyMatrix, CsrSquareMatrix, Matrix};
 use crate::util::{self, constants::*};
 
@@ -55,27 +56,27 @@ impl StandardGraph {
         if !added_edge {
             // Don't add an edge, but increase the adjacency matrix dimension by adding
             // a zero entry
-            self.adjacency_matrix.add_entry(0, vertex_id, 0);
+            self.adjacency_matrix.set_entry(0, vertex_id, 0);
         }
     }
 
     pub fn add_edge(&mut self, from_vertex_id: u64, to_vertex_id: u64) {
         self.adjacency_matrix
-            .add_entry(1, from_vertex_id, to_vertex_id);
+            .set_entry(1, from_vertex_id, to_vertex_id);
 
         if self.is_undirected {
             self.adjacency_matrix
-                .add_entry(1, to_vertex_id, from_vertex_id);
+                .set_entry(1, to_vertex_id, from_vertex_id);
         }
     }
 
     pub fn remove_edge(&mut self, from_vertex_id: u64, to_vertex_id: u64) {
         self.adjacency_matrix
-            .delete_entry(from_vertex_id, to_vertex_id);
+            .zero_entry(from_vertex_id, to_vertex_id);
 
         if self.is_undirected {
             self.adjacency_matrix
-                .delete_entry(to_vertex_id, from_vertex_id);
+                .zero_entry(to_vertex_id, from_vertex_id);
         }
     }
 
@@ -113,14 +114,14 @@ impl StandardGraph {
         let mut avg_pool_matrix = CsrSquareMatrix::new();
 
         // Set dimension
-        avg_pool_matrix.add_entry(0.0, blocks_per_row - 1, 0);
+        avg_pool_matrix.set_entry(0.0, blocks_per_row - 1, 0);
 
         let block_size = block_dimension * block_dimension;
         for col in 0..blocks_per_row {
             for row in 0..blocks_per_row {
                 let entry = occurrence_matrix.get_entry(col, row) as f64 / block_size as f64;
                 if entry != 0.0 {
-                    avg_pool_matrix.add_entry(entry, col, row);
+                    avg_pool_matrix.set_entry(entry, col, row);
                 }
             }
         }
@@ -379,5 +380,28 @@ impl TryFrom<&[u8]> for StandardGraph {
         graph.add_vertex(header.adjacency_matrix_dimension - 1, None);
 
         Ok(graph)
+    }
+}
+
+impl<'a> IntoIterator for &'a StandardGraph {
+    type Item = (u64, u64);
+    type IntoIter = StandardGraphIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        StandardGraphIter {
+            adjacency_matrix_iter: self.adjacency_matrix.into_iter(),
+        }
+    }
+}
+
+pub struct StandardGraphIter<'a> {
+    adjacency_matrix_iter: CsrAdjacencyMatrixIter<'a>,
+}
+
+impl<'a> Iterator for StandardGraphIter<'a> {
+    type Item = (u64, u64);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.adjacency_matrix_iter.next()
     }
 }

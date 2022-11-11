@@ -13,6 +13,6 @@ pub trait Matrix<T: Numeric>: Debug + ToString {
     fn entry_count(&self) -> u64;
 
     fn get_entry(&self, col: u64, row: u64) -> T;
-    fn add_entry(&mut self, entry: T, col: u64, row: u64);
-    fn delete_entry(&mut self, col: u64, row: u64);
+    fn set_entry(&mut self, entry: T, col: u64, row: u64);
+    fn zero_entry(&mut self, col: u64, row: u64);
 }

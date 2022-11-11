@@ -64,6 +64,14 @@ impl CompressedGraph {
 
         graph
     }
+
+    pub fn edge_count(&self) -> u64 {
+        self.edge_count
+    }
+
+    pub fn threshold(&self) -> f64 {
+        self.threshold
+    }
 }
 
 impl GraphRepresentation for CompressedGraph {
@@ -266,7 +274,19 @@ impl CompressedGraphBuilder {
         };
 
         let mut adjacency_matrix = CsrSquareMatrix::default();
-        adjacency_matrix.add_entry(0, vertex_count / COMPRESSION_BLOCK_DIMENSION, 0);
+
+        let mut column_count = vertex_count / COMPRESSION_BLOCK_DIMENSION;
+
+        // In this case, we don't need an extra column/row to represent all of
+        // the entries in the original matrix. For example, a 64x64 adjacency
+        // matrix can be compressed down to an 8x8 matrix rather than a 9x9 one.
+        // The adjacency_matrix.set_entry() function will add 1 to what is passed
+        // the highest entry index to find its dimension.
+        if vertex_count % COMPRESSION_BLOCK_DIMENSION == 0 {
+            column_count -= 1;
+        };
+        
+        adjacency_matrix.set_entry(0, column_count, 0);
 
         Self {
             graph: CompressedGraph {
@@ -292,12 +312,12 @@ impl CompressedGraphBuilder {
             find_hamming_weight(entry)
         };
 
-        self.graph.adjacency_matrix.add_entry(entry, col, row);
+        self.graph.adjacency_matrix.set_entry(entry, col, row);
     }
 
     pub fn set_min_adjacency_matrix_dimension(&mut self, dimension: u64) {
         if self.graph.adjacency_matrix.dimension() < dimension {
-            self.graph.adjacency_matrix.add_entry(0, dimension - 1, 0);
+            self.graph.adjacency_matrix.set_entry(0, dimension - 1, 0);
         }
     }
 
@@ -334,26 +354,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_find_hamming_weight() {
-        assert_eq!(find_hamming_weight(0), 0);
-        assert_eq!(find_hamming_weight(1), 1);
-        assert_eq!(find_hamming_weight(2), 1);
-        assert_eq!(find_hamming_weight(3), 2);
-        assert_eq!(find_hamming_weight(4), 1);
-        assert_eq!(find_hamming_weight(5), 2);
-        assert_eq!(find_hamming_weight(6), 2);
-        assert_eq!(find_hamming_weight(7), 3);
-        assert_eq!(find_hamming_weight(8), 1);
-        assert_eq!(find_hamming_weight(9), 2);
-        assert_eq!(find_hamming_weight(0x1111111111111111), 16);
-        assert_eq!(find_hamming_weight(0x2222222222222222), 16);
-        assert_eq!(find_hamming_weight(0x3333333333333333), 32);
-        assert_eq!(find_hamming_weight(0x7777777777777777), 48);
-        assert_eq!(find_hamming_weight(0xeeeeeeeeeeeeeeee), 48);
-        assert_eq!(find_hamming_weight(u64::MAX), 64);
-    }
-
-    #[test]
     fn test_compressed_graph_is_undirected() {
         let graph = CompressedGraphBuilder::new(true, 8, 0.3).finish();
         assert!(graph.is_undirected());
@@ -369,6 +369,20 @@ mod tests {
 
         let graph = CompressedGraphBuilder::new(false, 100, 0.8).finish();
         assert_eq!(graph.vertex_count(), 100);
+    }
+
+    #[test]
+    fn test_compressed_graph_edge_count() {
+        let mut graph = CompressedGraphBuilder::new(false, 15, 0.3);
+        graph.add_adjacency_matrix_entry(u64::MAX, 1, 1, None);
+        let graph = graph.finish();
+        assert_eq!(graph.edge_count(), 64);
+    }
+
+    #[test]
+    fn test_compressed_graph_threshold() {
+        let graph = CompressedGraphBuilder::new(true, 9, 0.77).finish();
+        assert_eq!(graph.threshold(), 0.77);
     }
 
     #[test]
@@ -389,5 +403,155 @@ mod tests {
 
         let expected = "[ 0, 0, 0, 0 ]\r\n[ 0, 9, 0, 0 ]\r\n[ 0, 0, 0, 0 ]\r\n[ 0, 0, 0, 0 ]";
         assert_eq!(expected, graph.matrix_representation_string());
+    }
+
+    #[test]
+    fn test_compressed_graph_does_edge_exist() {
+        let mut graph = CompressedGraphBuilder::new(false, 16, 0.3);
+        graph.add_adjacency_matrix_entry(u64::MAX, 1, 1, None);
+        let graph = graph.finish();
+
+        assert!(!graph.does_edge_exist(8, 7));
+        assert!(!graph.does_edge_exist(7, 8));
+        assert!(!graph.does_edge_exist(15, 16));
+        assert!(!graph.does_edge_exist(16, 15));
+        assert!(!graph.does_edge_exist(7, 15));
+        assert!(!graph.does_edge_exist(8, 16));
+        assert!(!graph.does_edge_exist(15, 7));
+        assert!(!graph.does_edge_exist(16, 8));
+
+        assert!(graph.does_edge_exist(8, 8));
+        assert!(graph.does_edge_exist(15, 15));
+        assert!(graph.does_edge_exist(15, 8));
+        assert!(graph.does_edge_exist(8, 15));
+
+        assert!(graph.does_edge_exist(10, 8));
+        assert!(graph.does_edge_exist(10, 10));
+        assert!(graph.does_edge_exist(14, 15));
+    }
+
+    #[test]
+    fn test_compressed_graph_to_from_bytes() {
+        let mut graph = CompressedGraphBuilder::new(false, 100, 0.3);
+        graph.add_adjacency_matrix_entry(300, 1, 1, None);
+        graph.add_adjacency_matrix_entry(10, 2, 1, None);
+        graph.add_adjacency_matrix_entry(8, 4, 3, None);
+        let graph = graph.finish();
+
+        let bytes = graph.encode_to_bytes();
+        let graph_from_bytes = CompressedGraph::try_from(bytes.as_slice()).unwrap();
+
+        assert_eq!(graph.is_undirected, graph_from_bytes.is_undirected);
+        assert_eq!(graph.threshold, graph_from_bytes.threshold);
+        assert_eq!(graph.edge_count, graph_from_bytes.edge_count);
+        assert_eq!(graph.vertex_count, graph_from_bytes.vertex_count);
+        assert_eq!(
+            graph.adjacency_matrix.dimension(),
+            graph_from_bytes.adjacency_matrix.dimension()
+        );
+        assert_eq!(
+            graph.adjacency_matrix.entry_count(),
+            graph_from_bytes.adjacency_matrix.entry_count()
+        );
+
+        let graph_matrix_entries = graph.adjacency_matrix.into_iter().collect::<Vec<_>>();
+
+        for entry in &graph_from_bytes.adjacency_matrix {
+            assert!(graph_matrix_entries.contains(&entry));
+        }
+    }
+
+    #[test]
+    fn test_compressed_graph_decompress() {
+        let mut graph = CompressedGraphBuilder::new(false, 16, 0.3);
+        graph.add_adjacency_matrix_entry(u64::MAX, 1, 1, None);
+        let graph = graph.finish();
+
+        let decompressed_graph = graph.decompress();
+
+        assert_eq!(graph.is_undirected(), decompressed_graph.is_undirected());
+        assert_eq!(graph.vertex_count(), decompressed_graph.vertex_count());
+
+        let decompressed_graph_edges = decompressed_graph.into_iter().collect::<Vec<_>>();
+
+        assert_eq!(decompressed_graph_edges.len() as u64, graph.edge_count);
+
+        for (col, row) in &decompressed_graph {
+            assert!(graph.does_edge_exist(col, row));
+        }
+    }
+
+    #[test]
+    fn test_compressed_graph_builder_new() {
+        let builder = CompressedGraphBuilder::new(true, 47, 0.42);
+        assert_eq!(builder.graph.is_undirected, true);
+        assert_eq!(builder.graph.threshold, 0.42);
+        assert_eq!(builder.graph.edge_count, 0);
+        assert_eq!(builder.graph.vertex_count(), 47);
+        assert_eq!(
+            builder.graph.adjacency_matrix.dimension(),
+            47 / COMPRESSION_BLOCK_DIMENSION + 1
+        );
+
+        let builder = CompressedGraphBuilder::new(true, 47, 23.7);
+        assert_eq!(builder.graph.threshold, 1.0);
+
+        let builder = CompressedGraphBuilder::new(true, 47, 23.7);
+        assert_eq!(builder.graph.threshold, 1.0);
+
+        let builder = CompressedGraphBuilder::new(true, 47, -53.9);
+        assert_eq!(builder.graph.threshold, GRAPH_APPROXIMATION_MIN_THRESHOLD);
+    }
+
+    #[test]
+    fn test_compressed_graph_builder_add_adjacency_matrix_entry() {
+        let mut builder = CompressedGraphBuilder::new(true, 10, 0.42);
+
+        builder.add_adjacency_matrix_entry(0x00000000000000ff, 2, 1, None);
+        assert_eq!(builder.graph.edge_count, 8);
+
+        builder.add_adjacency_matrix_entry(0x00000000000ff001, 0, 1, Some(9));
+        assert_eq!(builder.graph.edge_count, 17);
+
+        assert_eq!(
+            builder.graph.adjacency_matrix.get_entry(0, 1),
+            0x00000000000ff001
+        );
+        assert_eq!(
+            builder.graph.adjacency_matrix.get_entry(2, 1),
+            0x00000000000000ff
+        );
+    }
+
+    #[test]
+    fn test_compressed_graph_builder_set_min_adjacency_matrix_dimension() {
+        let mut builder = CompressedGraphBuilder::new(true, 64, 0.42);
+        assert_eq!(builder.graph.adjacency_matrix.dimension(), 8);
+
+        builder.set_min_adjacency_matrix_dimension(4);
+        assert_eq!(builder.graph.adjacency_matrix.dimension(), 8);
+
+        builder.set_min_adjacency_matrix_dimension(40);
+        assert_eq!(builder.graph.adjacency_matrix.dimension(), 40);
+    }
+
+    #[test]
+    fn test_find_hamming_weight() {
+        assert_eq!(find_hamming_weight(0), 0);
+        assert_eq!(find_hamming_weight(1), 1);
+        assert_eq!(find_hamming_weight(2), 1);
+        assert_eq!(find_hamming_weight(3), 2);
+        assert_eq!(find_hamming_weight(4), 1);
+        assert_eq!(find_hamming_weight(5), 2);
+        assert_eq!(find_hamming_weight(6), 2);
+        assert_eq!(find_hamming_weight(7), 3);
+        assert_eq!(find_hamming_weight(8), 1);
+        assert_eq!(find_hamming_weight(9), 2);
+        assert_eq!(find_hamming_weight(0x1111111111111111), 16);
+        assert_eq!(find_hamming_weight(0x2222222222222222), 16);
+        assert_eq!(find_hamming_weight(0x3333333333333333), 32);
+        assert_eq!(find_hamming_weight(0x7777777777777777), 48);
+        assert_eq!(find_hamming_weight(0xeeeeeeeeeeeeeeee), 48);
+        assert_eq!(find_hamming_weight(u64::MAX), 64);
     }
 }
