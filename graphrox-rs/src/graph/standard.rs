@@ -134,13 +134,7 @@ impl StandardGraph {
             return self.clone();
         }
 
-        let threshold = if threshold > 1.0 {
-            1.0
-        } else if threshold <= 0.0 {
-            GRAPH_APPROXIMATION_MIN_THRESHOLD
-        } else {
-            threshold
-        };
+        let threshold = util::clamp_threshold(threshold);
 
         let block_dimension = if block_dimension > self.vertex_count() {
             self.vertex_count()
@@ -177,6 +171,8 @@ impl StandardGraph {
     }
 
     pub fn compress(&self, threshold: f64) -> CompressedGraph {
+        let threshold = util::clamp_threshold(threshold);
+
         let mut builder =
             CompressedGraphBuilder::new(self.is_undirected, self.vertex_count(), threshold);
 
@@ -869,7 +865,7 @@ mod tests {
         assert_eq!(approx_graph.is_undirected(), graph.is_undirected());
         assert_eq!(approx_graph.adjacency_matrix.dimension(), 2);
         assert_eq!(approx_graph.adjacency_matrix.entry_count(), 2);
-        
+
         assert!(approx_graph.does_edge_exist(0, 0));
         assert!(approx_graph.does_edge_exist(1, 1));
 
@@ -931,7 +927,7 @@ mod tests {
 
         assert!(approx_graph.does_edge_exist(0, 0));
         assert!(approx_graph.does_edge_exist(1, 0));
-        
+
         let graph = StandardGraph::new_directed();
         let approx_graph = graph.approximate(4, 0.4);
         assert_eq!(approx_graph.adjacency_matrix.dimension(), 0);
@@ -964,7 +960,167 @@ mod tests {
 
     #[test]
     fn test_standard_graph_compress() {
-        todo!();
+        let mut graph = StandardGraph::new_directed();
+        graph.add_vertex(23, None);
+
+        for i in 8..16 {
+            for j in 8..16 {
+                graph.add_edge(i, j);
+            }
+        }
+
+        for i in 0..8 {
+            for j in 0..4 {
+                graph.add_edge(i, j);
+            }
+        }
+
+        graph.add_edge(22, 18);
+        graph.add_edge(15, 18);
+
+        let compressed_graph = graph.compress(0.2);
+
+        assert_eq!(compressed_graph.is_undirected(), graph.is_undirected());
+        assert_eq!(compressed_graph.threshold(), 0.2);
+        assert_eq!(compressed_graph.vertex_count(), graph.vertex_count());
+        assert_eq!(compressed_graph.vertex_count(), 24);
+        assert_eq!(compressed_graph.edge_count(), 96); // 64 + 2
+
+        assert_eq!(
+            compressed_graph.get_adjacency_matrix_entry(0, 0),
+            0x00000000ffffffffu64
+        );
+        assert_eq!(compressed_graph.get_adjacency_matrix_entry(1, 1), u64::MAX);
+
+        let compressed_graph = graph.compress(0.6);
+
+        assert_eq!(compressed_graph.is_undirected(), graph.is_undirected());
+        assert_eq!(compressed_graph.threshold(), 0.6);
+        assert_eq!(compressed_graph.vertex_count(), graph.vertex_count());
+        assert_eq!(compressed_graph.vertex_count(), 24);
+        assert_eq!(compressed_graph.edge_count(), 64);
+
+        assert_eq!(compressed_graph.get_adjacency_matrix_entry(1, 1), u64::MAX);
+
+        let compressed_graph = graph.compress(1.0);
+
+        assert_eq!(compressed_graph.is_undirected(), graph.is_undirected());
+        assert_eq!(compressed_graph.threshold(), 1.0);
+        assert_eq!(compressed_graph.vertex_count(), graph.vertex_count());
+        assert_eq!(compressed_graph.vertex_count(), 24);
+        assert_eq!(compressed_graph.edge_count(), 64);
+
+        assert_eq!(compressed_graph.get_adjacency_matrix_entry(1, 1), u64::MAX);
+
+        let mut graph = StandardGraph::new_undirected();
+        graph.add_vertex(23, None);
+
+        for i in 8..16 {
+            for j in 8..16 {
+                graph.add_edge(i, j);
+            }
+        }
+
+        for i in 8..16 {
+            for j in 0..4 {
+                graph.add_edge(i, j);
+            }
+        }
+
+        graph.add_edge(22, 18);
+        graph.add_edge(15, 18);
+
+        let compressed_graph = graph.compress(0.5);
+
+        assert_eq!(compressed_graph.is_undirected(), graph.is_undirected());
+        assert_eq!(compressed_graph.threshold(), 0.5);
+        assert_eq!(compressed_graph.vertex_count(), graph.vertex_count());
+        assert_eq!(compressed_graph.vertex_count(), 24);
+        assert_eq!(compressed_graph.edge_count(), 128); // 64 + 32 + 32
+
+        assert_eq!(
+            compressed_graph.get_adjacency_matrix_entry(1, 0),
+            0x00000000ffffffffu64
+        );
+        assert_eq!(
+            compressed_graph.get_adjacency_matrix_entry(0, 1),
+            0x0f0f0f0f0f0f0f0fu64
+        );
+        assert_eq!(compressed_graph.get_adjacency_matrix_entry(1, 1), u64::MAX);
+
+        let mut graph = StandardGraph::new_directed();
+        graph.add_vertex(23, None);
+
+        for i in 8..16 {
+            for j in 8..16 {
+                graph.add_edge(i, j);
+            }
+        }
+
+        for i in 0..8 {
+            for j in 0..4 {
+                graph.add_edge(i, j);
+            }
+        }
+
+        graph.add_edge(22, 18);
+        graph.add_edge(15, 18);
+
+        let compressed_graph = graph.compress(0.2);
+        let decompressed_graph = compressed_graph.decompress();
+
+        assert_eq!(graph.is_undirected(), decompressed_graph.is_undirected());
+        assert_eq!(graph.edge_count() - 2, decompressed_graph.edge_count());
+        assert_eq!(graph.vertex_count(), decompressed_graph.vertex_count());
+
+        for i in 8..16 {
+            for j in 8..16 {
+                assert!(decompressed_graph.does_edge_exist(i, j));
+            }
+        }
+
+        for i in 0..8 {
+            for j in 0..4 {
+                assert!(decompressed_graph.does_edge_exist(i, j));
+            }
+        }
+
+        let mut graph = StandardGraph::new_undirected();
+        graph.add_vertex(23, None);
+
+        for i in 8..16 {
+            for j in 8..16 {
+                graph.add_edge(i, j);
+            }
+        }
+
+        for i in 8..16 {
+            for j in 0..4 {
+                graph.add_edge(i, j);
+            }
+        }
+
+        graph.add_edge(22, 18);
+        graph.add_edge(15, 18);
+
+        let compressed_graph = graph.compress(0.2);
+        let decompressed_graph = compressed_graph.decompress();
+
+        assert_eq!(graph.is_undirected(), decompressed_graph.is_undirected());
+        assert_eq!(graph.edge_count() - 4, decompressed_graph.edge_count());
+        assert_eq!(graph.vertex_count(), decompressed_graph.vertex_count());
+
+        for i in 8..16 {
+            for j in 8..16 {
+                assert!(decompressed_graph.does_edge_exist(i, j));
+            }
+        }
+
+        for i in 8..16 {
+            for j in 0..4 {
+                assert!(decompressed_graph.does_edge_exist(i, j));
+            }
+        }
     }
 
     #[test]

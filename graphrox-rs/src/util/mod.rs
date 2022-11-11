@@ -18,6 +18,17 @@ pub unsafe fn as_byte_slice<T: Sized>(item: &T) -> &[u8] {
     slice::from_raw_parts((item as *const T) as *const u8, mem::size_of::<T>())
 }
 
+#[inline]
+pub fn clamp_threshold(threshold: f64) -> f64 {
+    if threshold > 1.0 {
+        1.0
+    } else if threshold <= 0.0 {
+        constants::GRAPH_APPROXIMATION_MIN_THRESHOLD
+    } else {
+        threshold
+    }
+}
+
 pub trait Numeric: PartialOrd + Copy {
     fn max() -> Self;
     fn min() -> Self;

@@ -68,6 +68,10 @@ impl CompressedGraph {
     pub fn threshold(&self) -> f64 {
         self.threshold
     }
+
+    pub fn get_adjacency_matrix_entry(&self, col: u64, row: u64) -> u64 {
+        self.adjacency_matrix.get_entry(col, row)
+    }
 }
 
 impl GraphRepresentation for CompressedGraph {
@@ -265,13 +269,7 @@ pub struct CompressedGraphBuilder {
 
 impl CompressedGraphBuilder {
     pub fn new(is_undirected: bool, vertex_count: u64, threshold: f64) -> Self {
-        let threshold = if threshold > 1.0 {
-            1.0
-        } else if threshold <= 0.0 {
-            GRAPH_APPROXIMATION_MIN_THRESHOLD
-        } else {
-            threshold
-        };
+        let threshold = util::clamp_threshold(threshold);
 
         let mut adjacency_matrix = CsrSquareMatrix::default();
 
@@ -383,6 +381,19 @@ mod tests {
     fn test_compressed_graph_threshold() {
         let graph = CompressedGraphBuilder::new(true, 9, 0.77).finish();
         assert_eq!(graph.threshold(), 0.77);
+    }
+
+    #[test]
+    fn test_compressed_graph_get_adjacency_matrix_entry() {
+        let mut graph = CompressedGraphBuilder::new(false, 15, 0.3);
+        graph.add_adjacency_matrix_entry(42, 0, 0, None);
+        graph.add_adjacency_matrix_entry(67, 0, 1, None);
+        graph.add_adjacency_matrix_entry(u64::MAX, 1, 1, None);
+        let graph = graph.finish();
+
+        assert_eq!(graph.get_adjacency_matrix_entry(0, 0), 42);
+        assert_eq!(graph.get_adjacency_matrix_entry(0, 1), 67);
+        assert_eq!(graph.get_adjacency_matrix_entry(1, 1), u64::MAX);
     }
 
     #[test]
