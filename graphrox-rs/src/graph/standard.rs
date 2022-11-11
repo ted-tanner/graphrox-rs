@@ -405,3 +405,188 @@ impl<'a> Iterator for StandardGraphIter<'a> {
         self.adjacency_matrix_iter.next()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_standard_graph_new() {
+        let graph = StandardGraph::new_undirected();
+        assert!(graph.is_undirected);
+
+        let graph = StandardGraph::new_directed();
+        assert!(!graph.is_undirected);
+    }
+
+    #[test]
+    fn test_standard_graph_add_vertex() {
+        let mut graph = StandardGraph::new_undirected();
+
+        let vertex_edges = [2, 5, 3, 8, 1];
+        graph.add_vertex(3, Some(&vertex_edges));
+
+        assert_eq!(graph.adjacency_matrix.entry_count(), 9);
+        assert_eq!(graph.adjacency_matrix.dimension(), 9);
+
+        assert!(graph.does_edge_exist(3, 2));
+        assert!(graph.does_edge_exist(2, 3));
+        assert!(graph.does_edge_exist(3, 5));
+        assert!(graph.does_edge_exist(5, 3));
+        assert!(graph.does_edge_exist(3, 3));
+        assert!(graph.does_edge_exist(3, 8));
+        assert!(graph.does_edge_exist(8, 3));
+        assert!(graph.does_edge_exist(3, 1));
+        assert!(graph.does_edge_exist(1, 3));
+
+        graph.add_vertex(100, None);
+
+        assert_eq!(graph.adjacency_matrix.entry_count(), 9);
+        assert_eq!(graph.adjacency_matrix.dimension(), 101);
+            
+        let mut graph = StandardGraph::new_directed();
+
+        let vertex_edges = [2, 5, 3, 8, 1];
+        graph.add_vertex(3, Some(&vertex_edges));
+
+        assert_eq!(graph.adjacency_matrix.entry_count(), 5);
+        assert_eq!(graph.adjacency_matrix.dimension(), 9);
+
+        assert!(graph.does_edge_exist(3, 2));
+        assert!(graph.does_edge_exist(3, 5));
+        assert!(graph.does_edge_exist(3, 3));
+        assert!(graph.does_edge_exist(3, 8));
+        assert!(graph.does_edge_exist(3, 1));
+
+        graph.add_vertex(101, None);
+
+        assert_eq!(graph.adjacency_matrix.entry_count(), 5);
+        assert_eq!(graph.adjacency_matrix.dimension(), 102);
+    }
+
+    #[test]
+    fn test_standard_graph_add_edge() {
+        let mut graph = StandardGraph::new_undirected();
+        
+        assert_eq!(graph.adjacency_matrix.entry_count(), 0);
+        assert_eq!(graph.adjacency_matrix.dimension(), 0);
+
+        graph.add_edge(0, 7);
+
+        assert!(graph.does_edge_exist(0, 7));
+        assert!(graph.does_edge_exist(7, 0));
+        assert_eq!(graph.adjacency_matrix.entry_count(), 2);
+        assert_eq!(graph.adjacency_matrix.dimension(), 8);
+
+        graph.add_edge(4, 3);
+
+        assert!(graph.does_edge_exist(4, 3));
+        assert!(graph.does_edge_exist(3, 4));
+        assert_eq!(graph.adjacency_matrix.entry_count(), 4);
+        assert_eq!(graph.adjacency_matrix.dimension(), 8);
+
+        graph.add_edge(9, 9);
+
+        assert!(graph.does_edge_exist(9, 9));
+        assert_eq!(graph.adjacency_matrix.entry_count(), 5);
+        assert_eq!(graph.adjacency_matrix.dimension(), 10);
+
+        let mut graph = StandardGraph::new_directed();
+
+        assert_eq!(graph.adjacency_matrix.entry_count(), 0);
+        assert_eq!(graph.adjacency_matrix.dimension(), 0);
+
+        graph.add_edge(0, 7);
+
+        assert!(graph.does_edge_exist(0, 7));
+        assert_eq!(graph.adjacency_matrix.entry_count(), 1);
+        assert_eq!(graph.adjacency_matrix.dimension(), 8);
+
+        graph.add_edge(4, 3);
+
+        assert!(graph.does_edge_exist(4, 3));
+        assert_eq!(graph.adjacency_matrix.entry_count(), 2);
+        assert_eq!(graph.adjacency_matrix.dimension(), 8);
+
+        graph.add_edge(9, 9);
+
+        assert!(graph.does_edge_exist(9, 9));
+        assert_eq!(graph.adjacency_matrix.entry_count(), 3);
+        assert_eq!(graph.adjacency_matrix.dimension(), 10);
+    }
+
+    #[test]
+    fn test_standard_graph_remove_edge() {
+        let mut graph = StandardGraph::new_undirected();
+
+        graph.add_edge(2, 5);
+
+        assert!(graph.does_edge_exist(2, 5));
+        assert!(graph.does_edge_exist(5, 2));
+        assert_eq!(graph.adjacency_matrix.entry_count(), 2);
+        assert_eq!(graph.adjacency_matrix.dimension(), 6);
+
+        graph.remove_edge(5, 2);
+
+        assert!(!graph.does_edge_exist(2, 5));
+        assert!(!graph.does_edge_exist(5, 2));
+        assert_eq!(graph.adjacency_matrix.entry_count(), 0);
+        assert_eq!(graph.adjacency_matrix.dimension(), 6);
+
+        graph.add_edge(1, 5);
+        graph.remove_edge(100, 100);
+
+        assert!(graph.does_edge_exist(1, 5));
+        assert!(graph.does_edge_exist(5, 1));
+        assert_eq!(graph.adjacency_matrix.entry_count(), 2);
+        assert_eq!(graph.adjacency_matrix.dimension(), 6);
+
+        graph.remove_edge(1, 5);
+
+        assert!(!graph.does_edge_exist(1, 5));
+        assert!(!graph.does_edge_exist(5, 1));
+        assert_eq!(graph.adjacency_matrix.entry_count(), 0);
+        assert_eq!(graph.adjacency_matrix.dimension(), 6);
+
+        graph.add_edge(8, 8);
+
+        assert!(graph.does_edge_exist(8, 8));
+        assert_eq!(graph.adjacency_matrix.entry_count(), 1);
+        assert_eq!(graph.adjacency_matrix.dimension(), 9);
+
+        graph.remove_edge(8, 8);
+
+        assert!(!graph.does_edge_exist(8, 8));
+        assert_eq!(graph.adjacency_matrix.entry_count(), 0);
+        assert_eq!(graph.adjacency_matrix.dimension(), 9);
+
+        let mut graph = StandardGraph::new_directed();
+
+        graph.add_edge(1, 5);
+
+        assert!(graph.does_edge_exist(1, 5));
+        assert_eq!(graph.adjacency_matrix.entry_count(), 1);
+        assert_eq!(graph.adjacency_matrix.dimension(), 6);
+
+        graph.remove_edge(1, 5);
+        graph.remove_edge(100, 100);
+
+        assert!(!graph.does_edge_exist(1, 5));
+        assert_eq!(graph.adjacency_matrix.entry_count(), 0);
+        assert_eq!(graph.adjacency_matrix.dimension(), 6);
+
+        graph.add_edge(8, 8);
+
+        assert!(graph.does_edge_exist(8, 8));
+        assert_eq!(graph.adjacency_matrix.entry_count(), 1);
+        assert_eq!(graph.adjacency_matrix.dimension(), 9);
+
+        graph.remove_edge(8, 8);
+
+        assert!(!graph.does_edge_exist(8, 8));
+        assert_eq!(graph.adjacency_matrix.entry_count(), 0);
+        assert_eq!(graph.adjacency_matrix.dimension(), 9);
+    }
+
+    // TODO
+}
