@@ -285,7 +285,7 @@ impl CompressedGraphBuilder {
         if vertex_count % COMPRESSION_BLOCK_DIMENSION == 0 {
             column_count -= 1;
         };
-        
+
         adjacency_matrix.set_entry(0, column_count, 0);
 
         Self {
@@ -293,7 +293,7 @@ impl CompressedGraphBuilder {
                 is_undirected,
                 threshold,
                 edge_count: 0,
-                vertex_count: vertex_count,
+                vertex_count,
                 adjacency_matrix,
             },
         }
@@ -455,6 +455,15 @@ mod tests {
         );
 
         let graph_matrix_entries = graph.adjacency_matrix.into_iter().collect::<Vec<_>>();
+        let graph_from_bytes_matrix_entries = graph_from_bytes
+            .adjacency_matrix
+            .into_iter()
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            graph_from_bytes_matrix_entries.len(),
+            graph_matrix_entries.len()
+        );
 
         for entry in &graph_from_bytes.adjacency_matrix {
             assert!(graph_matrix_entries.contains(&entry));
@@ -472,9 +481,10 @@ mod tests {
         assert_eq!(graph.is_undirected(), decompressed_graph.is_undirected());
         assert_eq!(graph.vertex_count(), decompressed_graph.vertex_count());
 
-        let decompressed_graph_edges = decompressed_graph.into_iter().collect::<Vec<_>>();
-
-        assert_eq!(decompressed_graph_edges.len() as u64, graph.edge_count);
+        assert_eq!(
+            decompressed_graph.into_iter().count() as u64,
+            graph.edge_count
+        );
 
         for (col, row) in &decompressed_graph {
             assert!(graph.does_edge_exist(col, row));
@@ -484,7 +494,7 @@ mod tests {
     #[test]
     fn test_compressed_graph_builder_new() {
         let builder = CompressedGraphBuilder::new(true, 47, 0.42);
-        assert_eq!(builder.graph.is_undirected, true);
+        assert!(builder.graph.is_undirected);
         assert_eq!(builder.graph.threshold, 0.42);
         assert_eq!(builder.graph.edge_count, 0);
         assert_eq!(builder.graph.vertex_count(), 47);
@@ -545,11 +555,11 @@ mod tests {
         let builder_vertex_count = builder.graph.vertex_count;
         let builder_dimension = builder.graph.adjacency_matrix.dimension();
         let builder_entry_count = builder.graph.adjacency_matrix.entry_count();
-        
+
         let graph = builder.finish();
 
         assert_eq!(builder_is_undirected, graph.is_undirected);
-        assert_eq!(builder_threshold, graph.threshold );
+        assert_eq!(builder_threshold, graph.threshold);
         assert_eq!(builder_edge_count, graph.edge_count);
         assert_eq!(builder_vertex_count, graph.vertex_count);
         assert_eq!(builder_dimension, graph.adjacency_matrix.dimension());

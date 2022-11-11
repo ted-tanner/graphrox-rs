@@ -420,6 +420,87 @@ mod tests {
     }
 
     #[test]
+    fn test_standard_graph_is_undirected() {
+        let graph = StandardGraph::new_undirected();
+        assert_eq!(graph.is_undirected, graph.is_undirected());
+
+        let graph = StandardGraph::new_directed();
+        assert_eq!(graph.is_undirected, graph.is_undirected());
+    }
+
+    #[test]
+    fn test_standard_graph_vertex_count() {
+        let mut graph = StandardGraph::new_undirected();
+        assert_eq!(graph.vertex_count(), 0);
+
+        graph.add_vertex(10, None);
+        assert_eq!(graph.vertex_count(), 11);
+
+        graph.add_edge(12, 13);
+        assert_eq!(graph.vertex_count(), 14);
+    }
+
+    #[test]
+    fn test_standard_graph_matrix_representation_string() {
+        let mut graph = StandardGraph::new_directed();
+        graph.add_edge(1, 2);
+        graph.add_edge(1, 0);
+        graph.add_edge(0, 2);
+        graph.add_edge(2, 2);
+
+        let expected = "[ 0, 1, 0 ]\r\n[ 0, 0, 0 ]\r\n[ 1, 1, 1 ]";
+        assert_eq!(expected, graph.matrix_representation_string());
+
+        graph.add_vertex(3, None);
+
+        let expected = "[ 0, 1, 0, 0 ]\r\n[ 0, 0, 0, 0 ]\r\n[ 1, 1, 1, 0 ]\r\n[ 0, 0, 0, 0 ]";
+        assert_eq!(expected, graph.matrix_representation_string());
+    }
+
+    #[test]
+    fn test_standard_graph_does_edge_exist() {
+        let mut graph = StandardGraph::new_directed();
+        assert!(!graph.does_edge_exist(0, 0));
+        assert!(!graph.does_edge_exist(0, 1));
+
+        graph.add_edge(0, 0);
+        graph.add_edge(5, 1);
+
+        assert!(graph.does_edge_exist(0, 0));
+        assert!(graph.does_edge_exist(5, 1));
+
+        graph.remove_edge(0, 0);
+
+        assert!(!graph.does_edge_exist(0, 0));
+        assert!(graph.does_edge_exist(5, 1));
+    }
+
+    #[test]
+    fn test_standard_graph_to_from_bytes() {
+        let mut graph = StandardGraph::new_directed();
+        graph.add_edge(1, 2);
+        graph.add_edge(1, 0);
+        graph.add_edge(0, 2);
+        graph.add_edge(2, 2);
+
+        let bytes = graph.encode_to_bytes();
+        let graph_from_bytes = StandardGraph::try_from(bytes.as_slice()).unwrap();
+
+        assert_eq!(graph.is_undirected, graph_from_bytes.is_undirected);
+
+        let graph_matrix_entries = graph.adjacency_matrix.into_iter().collect::<Vec<_>>();
+
+        assert_eq!(
+            graph_from_bytes.adjacency_matrix.into_iter().count(),
+            graph_matrix_entries.len()
+        );
+
+        for entry in &graph_from_bytes.adjacency_matrix {
+            assert!(graph_matrix_entries.contains(&entry));
+        }
+    }
+
+    #[test]
     fn test_standard_graph_add_vertex() {
         let mut graph = StandardGraph::new_undirected();
 
@@ -443,7 +524,7 @@ mod tests {
 
         assert_eq!(graph.adjacency_matrix.entry_count(), 9);
         assert_eq!(graph.adjacency_matrix.dimension(), 101);
-            
+
         let mut graph = StandardGraph::new_directed();
 
         let vertex_edges = [2, 5, 3, 8, 1];
@@ -467,7 +548,7 @@ mod tests {
     #[test]
     fn test_standard_graph_add_edge() {
         let mut graph = StandardGraph::new_undirected();
-        
+
         assert_eq!(graph.adjacency_matrix.entry_count(), 0);
         assert_eq!(graph.adjacency_matrix.dimension(), 0);
 
@@ -588,5 +669,46 @@ mod tests {
         assert_eq!(graph.adjacency_matrix.dimension(), 9);
     }
 
+    #[test]
+    fn test_standard_graph_ref_iterator() {
+        let mut graph = StandardGraph::new_directed();
+
+        graph.add_edge(0, 0);
+        graph.add_edge(1, 1);
+        graph.add_edge(1, 2);
+        graph.add_edge(2, 1);
+        graph.add_edge(1, 0);
+
+        let graph_edges = graph.into_iter().collect::<Vec<_>>();
+
+        assert_eq!(
+            graph_edges.len() as u64,
+            graph.adjacency_matrix.entry_count()
+        );
+        assert!(graph_edges.contains(&(0, 0)));
+        assert!(graph_edges.contains(&(1, 1)));
+        assert!(graph_edges.contains(&(1, 2)));
+        assert!(graph_edges.contains(&(2, 1)));
+        assert!(graph_edges.contains(&(1, 0)));
+
+        graph.remove_edge(1, 1);
+
+        let graph_edges = graph.into_iter().collect::<Vec<_>>();
+
+        assert_eq!(
+            graph_edges.len() as u64,
+            graph.adjacency_matrix.entry_count()
+        );
+        assert!(!graph_edges.contains(&(1, 1)));
+        assert!(graph_edges.contains(&(0, 0)));
+        assert!(graph_edges.contains(&(1, 2)));
+        assert!(graph_edges.contains(&(2, 1)));
+        assert!(graph_edges.contains(&(1, 0)));
+    }
+
     // TODO
+
+    // For approximation and avg_pool_matrix, make sure approximating small graphs
+    // using large block dimensions doesn't cause problems. Also test thresholds
+    // get clamped
 }
