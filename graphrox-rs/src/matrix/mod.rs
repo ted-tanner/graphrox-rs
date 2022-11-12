@@ -1,10 +1,15 @@
-pub mod csr_adjacency_matrix;
-pub mod csr_square_matrix;
+mod csr_adjacency_matrix;
+mod csr_square_matrix;
 
-pub use csr_adjacency_matrix::CsrAdjacencyMatrix;
-pub use csr_square_matrix::CsrSquareMatrix;
+pub use crate::matrix::csr_adjacency_matrix::CsrAdjacencyMatrix;
+pub use crate::matrix::csr_square_matrix::CsrSquareMatrix;
 
-use core::fmt::Debug;
+pub mod iter {
+    pub use super::csr_adjacency_matrix::CsrAdjacencyMatrixIter;
+    pub use super::csr_square_matrix::CsrSquareMatrixIter;
+}
+
+use std::fmt::Debug;
 
 use crate::util::Numeric;
 

@@ -4,7 +4,7 @@ use std::mem;
 use crate::error::GraphRoxError;
 use crate::graph::compressed::{CompressedGraph, CompressedGraphBuilder};
 use crate::graph::GraphRepresentation;
-use crate::matrix::csr_adjacency_matrix::CsrAdjacencyMatrixIter;
+use crate::matrix::iter::CsrAdjacencyMatrixIter;
 use crate::matrix::{CsrAdjacencyMatrix, CsrSquareMatrix, Matrix};
 use crate::util::{self, constants::*};
 

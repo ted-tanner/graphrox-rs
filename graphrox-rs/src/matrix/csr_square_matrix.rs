@@ -1,8 +1,7 @@
-use core::fmt::Debug;
 use std::collections::hash_map::Entry;
 use std::collections::hash_map::Iter as HashMapIter;
 use std::collections::HashMap;
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 use std::iter::{IntoIterator, Iterator};
 use std::mem::MaybeUninit;
 use std::ptr;

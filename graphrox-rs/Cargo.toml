@@ -5,6 +5,8 @@ version.workspace = true
 edition.workspace = true
 description.workspace = true
 license.workspace = true
+keywords = ["graph", "machine-learning", "approximation"]
+categories = ["data-structures", "science"]
 
 [lib]
 name = "graphrox"
