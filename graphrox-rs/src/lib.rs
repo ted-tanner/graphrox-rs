@@ -245,6 +245,7 @@
 mod graph;
 mod util;
 
+/// Errors that can be returned from GraphRox functions.
 pub mod error;
 pub mod matrix;
 

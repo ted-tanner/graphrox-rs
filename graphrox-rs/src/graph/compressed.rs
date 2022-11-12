@@ -354,10 +354,7 @@ impl TryFrom<&[u8]> for CompressedGraph {
             compressed_graph_builder.add_compressed_matrix_entry(entry, col, row, None);
         }
 
-        compressed_graph_builder
-            .set_min_compressed_matrix_dimension(header.adjacency_matrix_dimension);
-
-        Ok(compressed_graph_builder.finish())
+        unsafe { Ok(compressed_graph_builder.finish()) }
     }
 }
 
@@ -366,7 +363,8 @@ impl TryFrom<&[u8]> for CompressedGraph {
 /// **WARNING**: Use of `CompressedGraphBuilder` is discouraged because manually building a
 /// CompressedGraph is more difficult than building a `graphrox::Graph` and then compressing
 /// it. Additionally, for performance reasons, `CompressedGraphBuilder` doesn't enforce any
-/// constraints and expects users of its methods to provide correct data.
+/// constraints and expects users of its methods to provide correct data. If constraints are
+/// not met, the resulting graph will be invalid.
 ///
 /// If the functionalities of a `graphrox::Graph` are not needed and graph size makes the
 /// storage requirements of a `graphrox::Graph` prohibitive, then using
@@ -380,11 +378,9 @@ impl TryFrom<&[u8]> for CompressedGraph {
 /// use graphrox::builder::CompressedGraphBuilder;
 ///
 /// let mut builder = CompressedGraphBuilder::new(false, 10, 0.07);
-///
-/// builder.set_min_compressed_matrix_dimension(7);
 /// builder.add_compressed_matrix_entry(u64::MAX, 1, 1, None);
 ///
-/// let compressed_graph = builder.finish();
+/// let compressed_graph = unsafe { builder.finish() };
 ///
 /// assert!(!compressed_graph.does_edge_exist(8, 7));
 /// assert!(!compressed_graph.does_edge_exist(7, 8));
@@ -409,6 +405,21 @@ pub struct CompressedGraphBuilder {
 }
 
 impl CompressedGraphBuilder {
+    /// Creates a new CompressedGraphBuilder that stores the given parameters. The `threshold`
+    /// parameter will be clamped to a value between 10^(-18) and 1.0, but the other parameters
+    /// will not be validated.
+    ///
+    /// ```
+    /// use graphrox::GraphRepresentation;
+    /// use graphrox::builder::CompressedGraphBuilder;
+    ///
+    /// let builder = CompressedGraphBuilder::new(true, 70, 0.042);
+    /// let compressed_graph = unsafe { builder.finish() };
+    ///
+    /// assert!(compressed_graph.is_undirected());
+    /// assert_eq!(compressed_graph.vertex_count(), 70);
+    /// assert_eq!(compressed_graph.threshold(), 0.042);
+    /// ```
     pub fn new(is_undirected: bool, vertex_count: u64, threshold: f64) -> Self {
         let threshold = util::clamp_threshold(threshold);
 
@@ -437,7 +448,60 @@ impl CompressedGraphBuilder {
             },
         }
     }
-
+    
+    /// Adds a `u64` as an entry to the compressed matrix representation of the underlying
+    /// graph at the given `col` and `row` in the matrix. Each entry represents an 8x8 block of
+    /// entries in the adjacency matrix of an uncompressed graph.
+    ///
+    /// The Hamming weight of `entry`, or the number of bits in `entry` that are 1 rather than
+    /// 0, is used to track the edge count of the graph being constructed. If `None` is passed
+    /// for the `hamming_weight` parameter, the Hamming weight will be computed automatically.
+    /// Because the Hamming weight can often be obtained more efficiently when determining the
+    /// `entry` value before calling `add_compressed_matrix_entry()`, a pre-computed value can
+    /// be passed in for the Hamming weight instead. This value will *not* be validated, so an
+    /// incorrect value will lead to an invalid representation of the
+    /// `graphrox::CompressedGraph`.
+    ///
+    /// # Safety
+    ///
+    /// If an incorrect `hamming_weight` is provided, it will almost certainly cause undefined
+    /// behavior, including a potential buffer overflow, when the `CompressedGraphBuilder` is
+    /// finished and the underlying `graphrox::CompressedGraph` is converted to or from bytes.
+    /// If the weight is too small, the buffer allocated for the bytes will be too small. If
+    /// the weight is too large, the buffer will be too large and undefined values will be
+    /// added to the end of the buffer.
+    ///
+    /// Do not call `add_compressed_matrix_entry` on the same entry twice. Doing so will
+    /// replace the entry but will not adjust the entry count, causing it to be too large and
+    /// possibly resulting in undefined behavior.
+    ///
+    /// ```
+    /// use graphrox::GraphRepresentation; // Import trait for does_edge_exist
+    /// use graphrox::builder::CompressedGraphBuilder;
+    ///
+    /// let mut builder = CompressedGraphBuilder::new(false, 10, 0.07);
+    /// builder.add_compressed_matrix_entry(u64::MAX, 1, 1, None);
+    ///
+    /// let compressed_graph = unsafe { builder.finish() };
+    ///
+    /// assert!(!compressed_graph.does_edge_exist(8, 7));
+    /// assert!(!compressed_graph.does_edge_exist(7, 8));
+    /// assert!(!compressed_graph.does_edge_exist(15, 16));
+    /// assert!(!compressed_graph.does_edge_exist(16, 15));
+    /// assert!(!compressed_graph.does_edge_exist(7, 15));
+    /// assert!(!compressed_graph.does_edge_exist(8, 16));
+    /// assert!(!compressed_graph.does_edge_exist(15, 7));
+    /// assert!(!compressed_graph.does_edge_exist(16, 8));
+    ///
+    /// assert!(compressed_graph.does_edge_exist(8, 8));
+    /// assert!(compressed_graph.does_edge_exist(15, 15));
+    /// assert!(compressed_graph.does_edge_exist(15, 8));
+    /// assert!(compressed_graph.does_edge_exist(8, 15));
+    ///
+    /// assert!(compressed_graph.does_edge_exist(10, 8));
+    /// assert!(compressed_graph.does_edge_exist(10, 10));
+    /// assert!(compressed_graph.does_edge_exist(14, 15));
+    /// ```
     pub fn add_compressed_matrix_entry(
         &mut self,
         entry: u64,
@@ -454,21 +518,8 @@ impl CompressedGraphBuilder {
         self.graph.adjacency_matrix.set_entry(entry, col, row);
     }
 
-    pub fn set_min_compressed_matrix_dimension(&mut self, dimension: u64) {
-        if self.graph.adjacency_matrix.dimension() < dimension {
-            self.graph.adjacency_matrix.set_entry(0, dimension - 1, 0);
-        }
-    }
-
-    pub fn finish(self) -> CompressedGraph {
+    pub unsafe fn finish(self) -> CompressedGraph {
         self.graph
-    }
-}
-
-#[allow(clippy::from_over_into)]
-impl Into<CompressedGraph> for CompressedGraphBuilder {
-    fn into(self) -> CompressedGraph {
-        self.finish()
     }
 }
 
@@ -494,19 +545,19 @@ mod tests {
 
     #[test]
     fn test_compressed_graph_is_undirected() {
-        let graph = CompressedGraphBuilder::new(true, 8, 0.3).finish();
+        let graph = unsafe { CompressedGraphBuilder::new(true, 8, 0.3).finish() };
         assert!(graph.is_undirected());
 
-        let graph = CompressedGraphBuilder::new(false, 9, 0.1).finish();
+        let graph = unsafe { CompressedGraphBuilder::new(false, 9, 0.1).finish() };
         assert!(!graph.is_undirected());
     }
 
     #[test]
     fn test_compressed_graph_vertex_count() {
-        let graph = CompressedGraphBuilder::new(true, 8, 0.3).finish();
+        let graph = unsafe { CompressedGraphBuilder::new(true, 8, 0.3).finish() };
         assert_eq!(graph.vertex_count(), 8);
 
-        let graph = CompressedGraphBuilder::new(false, 100, 0.8).finish();
+        let graph = unsafe { CompressedGraphBuilder::new(false, 100, 0.8).finish() };
         assert_eq!(graph.vertex_count(), 100);
     }
 
@@ -514,13 +565,13 @@ mod tests {
     fn test_compressed_graph_edge_count() {
         let mut graph = CompressedGraphBuilder::new(false, 15, 0.3);
         graph.add_compressed_matrix_entry(u64::MAX, 1, 1, None);
-        let graph = graph.finish();
+        let graph = unsafe { graph.finish() };
         assert_eq!(graph.edge_count(), 64);
     }
 
     #[test]
     fn test_compressed_graph_threshold() {
-        let graph = CompressedGraphBuilder::new(true, 9, 0.77).finish();
+        let graph = unsafe { CompressedGraphBuilder::new(true, 9, 0.77).finish() };
         assert_eq!(graph.threshold(), 0.77);
     }
 
@@ -530,7 +581,7 @@ mod tests {
         graph.add_compressed_matrix_entry(42, 0, 0, None);
         graph.add_compressed_matrix_entry(67, 0, 1, None);
         graph.add_compressed_matrix_entry(u64::MAX, 1, 1, None);
-        let graph = graph.finish();
+        let graph = unsafe { graph.finish() };
 
         assert_eq!(graph.get_compressed_matrix_entry(0, 0), 42);
         assert_eq!(graph.get_compressed_matrix_entry(0, 1), 67);
@@ -543,7 +594,7 @@ mod tests {
         graph.add_compressed_matrix_entry(300, 1, 1, None);
         graph.add_compressed_matrix_entry(10, 2, 1, None);
 
-        let graph = graph.finish();
+        let graph = unsafe { graph.finish() };
 
         let expected = "[   0,   0,   0 ]\r\n[   0, 300,  10 ]\r\n[   0,   0,   0 ]";
         assert_eq!(expected, graph.matrix_representation_string());
@@ -551,7 +602,7 @@ mod tests {
         let mut graph = CompressedGraphBuilder::new(false, 27, 0.3);
         graph.add_compressed_matrix_entry(9, 1, 1, None);
 
-        let graph = graph.finish();
+        let graph = unsafe { graph.finish() };
 
         let expected = "[ 0, 0, 0, 0 ]\r\n[ 0, 9, 0, 0 ]\r\n[ 0, 0, 0, 0 ]\r\n[ 0, 0, 0, 0 ]";
         assert_eq!(expected, graph.matrix_representation_string());
@@ -561,7 +612,7 @@ mod tests {
     fn test_compressed_graph_does_edge_exist() {
         let mut graph = CompressedGraphBuilder::new(false, 16, 0.3);
         graph.add_compressed_matrix_entry(u64::MAX, 1, 1, None);
-        let graph = graph.finish();
+        let graph = unsafe { graph.finish() };
 
         assert!(!graph.does_edge_exist(8, 7));
         assert!(!graph.does_edge_exist(7, 8));
@@ -588,7 +639,7 @@ mod tests {
         graph.add_compressed_matrix_entry(300, 1, 1, None);
         graph.add_compressed_matrix_entry(10, 2, 1, None);
         graph.add_compressed_matrix_entry(8, 4, 3, None);
-        let graph = graph.finish();
+        let graph = unsafe { graph.finish() };
 
         let bytes = graph.to_bytes();
         let graph_from_bytes = CompressedGraph::try_from(bytes.as_slice()).unwrap();
@@ -626,7 +677,7 @@ mod tests {
     fn test_compressed_graph_decompress() {
         let mut graph = CompressedGraphBuilder::new(false, 16, 0.3);
         graph.add_compressed_matrix_entry(u64::MAX, 1, 1, None);
-        let graph = graph.finish();
+        let graph = unsafe { graph.finish() };
 
         let decompressed_graph = graph.decompress();
 
@@ -683,22 +734,8 @@ mod tests {
     }
 
     #[test]
-    fn test_compressed_graph_builder_set_min_compressed_matrix_dimension() {
-        let mut builder = CompressedGraphBuilder::new(true, 64, 0.42);
-        assert_eq!(builder.graph.adjacency_matrix.dimension(), 8);
-
-        builder.set_min_compressed_matrix_dimension(4);
-        assert_eq!(builder.graph.adjacency_matrix.dimension(), 8);
-
-        builder.set_min_compressed_matrix_dimension(40);
-        assert_eq!(builder.graph.adjacency_matrix.dimension(), 40);
-    }
-
-    #[test]
     fn test_compressed_graph_builder_finish() {
         let mut builder = CompressedGraphBuilder::new(false, 10, 0.07);
-
-        builder.set_min_compressed_matrix_dimension(7);
         builder.add_compressed_matrix_entry(u64::MAX, 1, 1, None);
 
         let builder_is_undirected = builder.graph.is_undirected;
@@ -708,7 +745,7 @@ mod tests {
         let builder_dimension = builder.graph.adjacency_matrix.dimension();
         let builder_entry_count = builder.graph.adjacency_matrix.entry_count();
 
-        let graph = builder.finish();
+        let graph = unsafe { builder.finish() };
 
         assert_eq!(builder_is_undirected, graph.is_undirected);
         assert_eq!(builder_threshold, graph.threshold);

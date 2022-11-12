@@ -446,15 +446,6 @@ impl StandardGraph {
         let mut builder =
             CompressedGraphBuilder::new(self.is_undirected, self.vertex_count(), threshold);
 
-        let are_edge_blocks_padded = self.vertex_count() % COMPRESSION_BLOCK_DIMENSION != 0;
-        let mut blocks_per_row = self.vertex_count() / COMPRESSION_BLOCK_DIMENSION;
-        if are_edge_blocks_padded {
-            blocks_per_row += 1;
-        }
-        let blocks_per_row = blocks_per_row;
-
-        builder.set_min_compressed_matrix_dimension(blocks_per_row);
-
         let avg_pool_matrix = self.find_avg_pool_matrix(COMPRESSION_BLOCK_DIMENSION);
         for (entry, col, row) in &avg_pool_matrix {
             if entry >= threshold {
@@ -487,7 +478,7 @@ impl StandardGraph {
             }
         }
 
-        builder.finish()
+        unsafe { builder.finish() }
     }
 }
 

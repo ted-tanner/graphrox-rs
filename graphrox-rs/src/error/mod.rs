@@ -1,8 +1,10 @@
 use std::fmt;
 
+/// An `enum` possessing possible GraphRox errors as variants.
 #[derive(Debug)]
 pub enum GraphRoxError {
-    NotFound(String),
+    /// Indicates a representation of a graph is invalid. For example, a byte representation of
+    /// a graph loaded from a file that has been corrupted.
     InvalidFormat(String),
 }
 
@@ -10,7 +12,6 @@ pub enum GraphRoxError {
 impl GraphRoxError {
     fn into_inner(self) -> String {
         match self {
-            GraphRoxError::NotFound(s) => s,
             GraphRoxError::InvalidFormat(s) => s,
         }
     }
@@ -22,7 +23,6 @@ impl fmt::Display for GraphRoxError {
             f,
             "GraphRoxError: {}",
             match self {
-                GraphRoxError::NotFound(s) => s,
                 GraphRoxError::InvalidFormat(s) => s,
             }
         )?;
