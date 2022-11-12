@@ -1,10 +1,8 @@
-#![doc(hidden)]
-
 use std::mem;
 use std::slice;
 
 pub mod constants {
-    pub const MIN_THRESHOLD_DIVISOR_POWER_TEN: u32 = 17;
+    pub const MIN_THRESHOLD_DIVISOR_POWER_TEN: u32 = 18;
     pub const GRAPH_APPROXIMATION_MIN_THRESHOLD: f64 =
         1.0f64 / (10u64.pow(MIN_THRESHOLD_DIVISOR_POWER_TEN) as f64);
 

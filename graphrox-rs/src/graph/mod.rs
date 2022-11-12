@@ -8,5 +8,5 @@ pub trait GraphRepresentation {
 
     fn matrix_representation_string(&self) -> String;
     fn does_edge_exist(&self, from_vertex_id: u64, to_vertex_id: u64) -> bool;
-    fn encode_to_bytes(&self) -> Vec<u8>;
+    fn to_bytes(&self) -> Vec<u8>;
 }

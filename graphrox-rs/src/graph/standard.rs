@@ -70,7 +70,7 @@ impl StandardGraph {
         }
     }
 
-    pub fn remove_edge(&mut self, from_vertex_id: u64, to_vertex_id: u64) {
+    pub fn delete_edge(&mut self, from_vertex_id: u64, to_vertex_id: u64) {
         self.adjacency_matrix
             .zero_entry(from_vertex_id, to_vertex_id);
 
@@ -244,7 +244,7 @@ impl GraphRepresentation for StandardGraph {
             != 0
     }
 
-    fn encode_to_bytes(&self) -> Vec<u8> {
+    fn to_bytes(&self) -> Vec<u8> {
         let header = GraphBytesHeader {
             magic_number: GRAPH_BYTES_MAGIC_NUMBER.to_be(),
             version: GRAPH_BYTES_VERSION.to_be(),
@@ -288,7 +288,7 @@ impl GraphRepresentation for StandardGraph {
 #[allow(clippy::from_over_into)]
 impl Into<Vec<u8>> for StandardGraph {
     fn into(self) -> Vec<u8> {
-        self.encode_to_bytes()
+        self.to_bytes()
     }
 }
 
@@ -493,7 +493,7 @@ mod tests {
         assert!(graph.does_edge_exist(0, 0));
         assert!(graph.does_edge_exist(5, 1));
 
-        graph.remove_edge(0, 0);
+        graph.delete_edge(0, 0);
 
         assert!(!graph.does_edge_exist(0, 0));
         assert!(graph.does_edge_exist(5, 1));
@@ -507,7 +507,7 @@ mod tests {
         graph.add_edge(0, 2);
         graph.add_edge(2, 2);
 
-        let bytes = graph.encode_to_bytes();
+        let bytes = graph.to_bytes();
         let graph_from_bytes = StandardGraph::try_from(bytes.as_slice()).unwrap();
 
         assert_eq!(graph.is_undirected, graph_from_bytes.is_undirected);
@@ -621,7 +621,7 @@ mod tests {
     }
 
     #[test]
-    fn test_standard_graph_remove_edge() {
+    fn test_standard_graph_delete_edge() {
         let mut graph = StandardGraph::new_undirected();
 
         graph.add_edge(2, 5);
@@ -631,7 +631,7 @@ mod tests {
         assert_eq!(graph.adjacency_matrix.entry_count(), 2);
         assert_eq!(graph.adjacency_matrix.dimension(), 6);
 
-        graph.remove_edge(5, 2);
+        graph.delete_edge(5, 2);
 
         assert!(!graph.does_edge_exist(2, 5));
         assert!(!graph.does_edge_exist(5, 2));
@@ -639,14 +639,14 @@ mod tests {
         assert_eq!(graph.adjacency_matrix.dimension(), 6);
 
         graph.add_edge(1, 5);
-        graph.remove_edge(100, 100);
+        graph.delete_edge(100, 100);
 
         assert!(graph.does_edge_exist(1, 5));
         assert!(graph.does_edge_exist(5, 1));
         assert_eq!(graph.adjacency_matrix.entry_count(), 2);
         assert_eq!(graph.adjacency_matrix.dimension(), 6);
 
-        graph.remove_edge(1, 5);
+        graph.delete_edge(1, 5);
 
         assert!(!graph.does_edge_exist(1, 5));
         assert!(!graph.does_edge_exist(5, 1));
@@ -659,7 +659,7 @@ mod tests {
         assert_eq!(graph.adjacency_matrix.entry_count(), 1);
         assert_eq!(graph.adjacency_matrix.dimension(), 9);
 
-        graph.remove_edge(8, 8);
+        graph.delete_edge(8, 8);
 
         assert!(!graph.does_edge_exist(8, 8));
         assert_eq!(graph.adjacency_matrix.entry_count(), 0);
@@ -673,8 +673,8 @@ mod tests {
         assert_eq!(graph.adjacency_matrix.entry_count(), 1);
         assert_eq!(graph.adjacency_matrix.dimension(), 6);
 
-        graph.remove_edge(1, 5);
-        graph.remove_edge(100, 100);
+        graph.delete_edge(1, 5);
+        graph.delete_edge(100, 100);
 
         assert!(!graph.does_edge_exist(1, 5));
         assert_eq!(graph.adjacency_matrix.entry_count(), 0);
@@ -686,7 +686,7 @@ mod tests {
         assert_eq!(graph.adjacency_matrix.entry_count(), 1);
         assert_eq!(graph.adjacency_matrix.dimension(), 9);
 
-        graph.remove_edge(8, 8);
+        graph.delete_edge(8, 8);
 
         assert!(!graph.does_edge_exist(8, 8));
         assert_eq!(graph.adjacency_matrix.entry_count(), 0);
@@ -984,7 +984,7 @@ mod tests {
         assert_eq!(compressed_graph.threshold(), 0.2);
         assert_eq!(compressed_graph.vertex_count(), graph.vertex_count());
         assert_eq!(compressed_graph.vertex_count(), 24);
-        assert_eq!(compressed_graph.edge_count(), 96); // 64 + 2
+        assert_eq!(compressed_graph.edge_count(), 96); // 64 + 32
 
         assert_eq!(
             compressed_graph.get_adjacency_matrix_entry(0, 0),
@@ -1145,7 +1145,7 @@ mod tests {
         assert!(graph_edges.contains(&(2, 1)));
         assert!(graph_edges.contains(&(1, 0)));
 
-        graph.remove_edge(1, 1);
+        graph.delete_edge(1, 1);
 
         let graph_edges = graph.into_iter().collect::<Vec<_>>();
 

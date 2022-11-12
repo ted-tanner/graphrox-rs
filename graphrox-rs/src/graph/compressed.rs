@@ -110,7 +110,7 @@ impl GraphRepresentation for CompressedGraph {
         bit_at_pos == 1
     }
 
-    fn encode_to_bytes(&self) -> Vec<u8> {
+    fn to_bytes(&self) -> Vec<u8> {
         let header = CompressedGraphBytesHeader {
             magic_number: COMPRESSED_GRAPH_BYTES_MAGIC_NUMBER.to_be(),
             version: COMPRESSED_GRAPH_BYTES_VERSION.to_be(),
@@ -162,7 +162,7 @@ impl GraphRepresentation for CompressedGraph {
 #[allow(clippy::from_over_into)]
 impl Into<Vec<u8>> for CompressedGraph {
     fn into(self) -> Vec<u8> {
-        self.encode_to_bytes()
+        self.to_bytes()
     }
 }
 
@@ -449,7 +449,7 @@ mod tests {
         graph.add_adjacency_matrix_entry(8, 4, 3, None);
         let graph = graph.finish();
 
-        let bytes = graph.encode_to_bytes();
+        let bytes = graph.to_bytes();
         let graph_from_bytes = CompressedGraph::try_from(bytes.as_slice()).unwrap();
 
         assert_eq!(graph.is_undirected, graph_from_bytes.is_undirected);
