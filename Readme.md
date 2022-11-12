@@ -41,4 +41,5 @@ To build the library, you need to have the
 [Rust Toolchain](https://www.rust-lang.org/tools/install) installed. From the project
 directory, run `cargo build --release` to build the Binaries.
 
-To run unit tests, run `cargo test`.
+To run unit tests, run `cargo test`. To generate formatted documentation, run
+`cargo doc`.
