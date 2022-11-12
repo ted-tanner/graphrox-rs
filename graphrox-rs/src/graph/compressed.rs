@@ -24,6 +24,39 @@ struct CompressedGraphBytesHeader {
     is_undirected: u8,
 }
 
+/// An efficient representation of a network graph. Graphs are stored as a sparse edge list
+/// using a HashMap of HashMaps that maps a column to a row and then a row to an entry. Each
+/// entry is a `u64` that encodes all the edges for an 8x8 block of the graph's adjacency
+/// matrix.
+///
+/// When a CompressedGraph is constructed from a `graphrox::Graph`, it is normally
+/// approximated. Only clusters of edges in the original adjacency matrix are represented in
+/// the CompressedGraph, hence a CompressedGraph tracks a `threshold` that indicates the
+/// threshold applied to the average pooling of the original matrix. A CompressedGraph is not
+/// necessarily approximated, though, because the `threshold` may be zero (approximately zero,
+/// actually 10^(-18)).
+///
+/// Normally, a CompressedGraph is constructed by calling `compress()` on a `graphrox::Graph`,
+/// but they can also be constructed manually using a
+/// `graphrox::builder::CompressedGraphBuilder`. A CompressedGraph is immutable, but can be
+/// decompressed into a mutable `graphrox::Graph`.
+///
+/// ```
+/// use graphrox::{Graph, GraphRepresentation};
+///
+/// let mut graph = Graph::new_directed();
+///
+/// graph.add_vertex(0, Some(&[1, 2, 6]));
+/// graph.add_vertex(1, Some(&[1, 2]));
+/// // ... more vertices ...
+///
+/// let compressed_graph = graph.compress(0.002);
+///
+/// assert_eq!(compressed_graph.threshold(), 0.002);
+/// assert!(compressed_graph.does_edge_exist(0, 1));
+/// assert!(compressed_graph.does_edge_exist(0, 2));
+/// // ...
+/// ```
 #[derive(Clone, Debug)]
 pub struct CompressedGraph {
     is_undirected: bool,
@@ -34,6 +67,26 @@ pub struct CompressedGraph {
 }
 
 impl CompressedGraph {
+    /// Decompresses a CompressedGraph into a `graphrox::Graph`.
+    ///
+    /// ```
+    /// use graphrox::{Graph, GraphRepresentation};
+    ///
+    /// let mut graph = Graph::new_directed();
+    ///
+    /// graph.add_vertex(0, Some(&[1, 2, 6]));
+    /// graph.add_vertex(1, Some(&[1, 2]));
+    /// // ... more vertices ...
+    ///
+    /// let compressed_graph = graph.compress(0.01);
+    /// let decompressed_graph = compressed_graph.decompress();
+    ///
+    /// assert_eq!(decompressed_graph.vertex_count(), graph.vertex_count());
+    ///
+    /// for (from_edge, to_edge) in &decompressed_graph {
+    ///     assert!(graph.does_edge_exist(from_edge, to_edge));
+    /// }
+    /// ```
     pub fn decompress(&self) -> StandardGraph {
         let mut graph = if self.is_undirected {
             StandardGraph::new_undirected()
@@ -65,11 +118,56 @@ impl CompressedGraph {
         graph
     }
 
+    /// Returns the threshold that was applied to the average pooling of the original graph's
+    /// adjacency matrix to create the CompressedGraph.
+    ///
+    /// ```
+    /// use graphrox::{Graph, GraphRepresentation};
+    ///
+    /// let mut graph = Graph::new_directed();
+    ///
+    /// graph.add_vertex(0, Some(&[1, 2, 6]));
+    /// graph.add_vertex(1, Some(&[1, 2]));
+    /// // ... more vertices ...
+    ///
+    /// let compressed_graph = graph.compress(0.0042);
+    ///
+    /// assert_eq!(compressed_graph.threshold(), 0.0042);
+    /// ```
     pub fn threshold(&self) -> f64 {
         self.threshold
     }
 
-    pub fn get_adjacency_matrix_entry(&self, col: u64, row: u64) -> u64 {
+    /// Returns an entry in the matrix that is used to store a CompressedGraph. The entries
+    /// are `u64`s that represent 8x8 blocks in an uncompressed matrix.
+    ///
+    /// ```
+    /// use graphrox::{Graph, GraphRepresentation};
+    ///
+    /// let mut graph = Graph::new_directed();
+    /// graph.add_vertex(23, None);
+    ///
+    /// for i in 8..16 {
+    ///     for j in 8..16 {
+    ///         graph.add_edge(i, j);
+    ///     }
+    /// }
+    ///
+    /// for i in 0..8 {
+    ///     for j in 0..4 {
+    ///         graph.add_edge(i, j);
+    ///     }
+    /// }
+    ///
+    /// let compressed_graph = graph.compress(0.05);
+    ///
+    /// // Because half of the 8x8 block was filled, half of the bits in the u64 are ones.
+    /// assert_eq!(compressed_graph.get_compressed_matrix_entry(0, 0),0x00000000ffffffffu64);
+    ///
+    /// // Because the entire 8x8 block was filled, the block is represented with u64::MAX
+    /// assert_eq!(compressed_graph.get_compressed_matrix_entry(1, 1), u64::MAX);
+    /// ```
+    pub fn get_compressed_matrix_entry(&self, col: u64, row: u64) -> u64 {
         self.adjacency_matrix.get_entry(col, row)
     }
 }
@@ -253,16 +351,59 @@ impl TryFrom<&[u8]> for CompressedGraph {
             let col = unsafe { u64::from_be_bytes(col_slice.try_into().unwrap_unchecked()) };
             let row = unsafe { u64::from_be_bytes(row_slice.try_into().unwrap_unchecked()) };
 
-            compressed_graph_builder.add_adjacency_matrix_entry(entry, col, row, None);
+            compressed_graph_builder.add_compressed_matrix_entry(entry, col, row, None);
         }
 
         compressed_graph_builder
-            .set_min_adjacency_matrix_dimension(header.adjacency_matrix_dimension);
+            .set_min_compressed_matrix_dimension(header.adjacency_matrix_dimension);
 
         Ok(compressed_graph_builder.finish())
     }
 }
 
+/// A tool for manually constructing `graphrox::CompressedGraph`s.
+///
+/// **WARNING**: Use of `CompressedGraphBuilder` is discouraged because manually building a
+/// CompressedGraph is more difficult than building a `graphrox::Graph` and then compressing
+/// it. Additionally, for performance reasons, `CompressedGraphBuilder` doesn't enforce any
+/// constraints and expects users of its methods to provide correct data.
+///
+/// If the functionalities of a `graphrox::Graph` are not needed and graph size makes the
+/// storage requirements of a `graphrox::Graph` prohibitive, then using
+/// `CompressedGraphBuilder` might be a good fit. Additionally, removing the intermediate
+/// step of constructing and then compressing a `graphrox::Graph` to obtain a
+/// `graphrox::CompressedGraph` provides users of `CompressedGraphBuilder` a more efficient
+/// method of obtaining a `graphrox::CompressedGraph`.
+///
+/// ```
+/// use graphrox::GraphRepresentation; // Import trait for does_edge_exist
+/// use graphrox::builder::CompressedGraphBuilder;
+///
+/// let mut builder = CompressedGraphBuilder::new(false, 10, 0.07);
+///
+/// builder.set_min_compressed_matrix_dimension(7);
+/// builder.add_compressed_matrix_entry(u64::MAX, 1, 1, None);
+///
+/// let compressed_graph = builder.finish();
+///
+/// assert!(!compressed_graph.does_edge_exist(8, 7));
+/// assert!(!compressed_graph.does_edge_exist(7, 8));
+/// assert!(!compressed_graph.does_edge_exist(15, 16));
+/// assert!(!compressed_graph.does_edge_exist(16, 15));
+/// assert!(!compressed_graph.does_edge_exist(7, 15));
+/// assert!(!compressed_graph.does_edge_exist(8, 16));
+/// assert!(!compressed_graph.does_edge_exist(15, 7));
+/// assert!(!compressed_graph.does_edge_exist(16, 8));
+///
+/// assert!(compressed_graph.does_edge_exist(8, 8));
+/// assert!(compressed_graph.does_edge_exist(15, 15));
+/// assert!(compressed_graph.does_edge_exist(15, 8));
+/// assert!(compressed_graph.does_edge_exist(8, 15));
+///
+/// assert!(compressed_graph.does_edge_exist(10, 8));
+/// assert!(compressed_graph.does_edge_exist(10, 10));
+/// assert!(compressed_graph.does_edge_exist(14, 15));
+/// ```
 pub struct CompressedGraphBuilder {
     graph: CompressedGraph,
 }
@@ -297,7 +438,7 @@ impl CompressedGraphBuilder {
         }
     }
 
-    pub fn add_adjacency_matrix_entry(
+    pub fn add_compressed_matrix_entry(
         &mut self,
         entry: u64,
         col: u64,
@@ -313,7 +454,7 @@ impl CompressedGraphBuilder {
         self.graph.adjacency_matrix.set_entry(entry, col, row);
     }
 
-    pub fn set_min_adjacency_matrix_dimension(&mut self, dimension: u64) {
+    pub fn set_min_compressed_matrix_dimension(&mut self, dimension: u64) {
         if self.graph.adjacency_matrix.dimension() < dimension {
             self.graph.adjacency_matrix.set_entry(0, dimension - 1, 0);
         }
@@ -372,7 +513,7 @@ mod tests {
     #[test]
     fn test_compressed_graph_edge_count() {
         let mut graph = CompressedGraphBuilder::new(false, 15, 0.3);
-        graph.add_adjacency_matrix_entry(u64::MAX, 1, 1, None);
+        graph.add_compressed_matrix_entry(u64::MAX, 1, 1, None);
         let graph = graph.finish();
         assert_eq!(graph.edge_count(), 64);
     }
@@ -384,23 +525,23 @@ mod tests {
     }
 
     #[test]
-    fn test_compressed_graph_get_adjacency_matrix_entry() {
+    fn test_compressed_graph_get_compressed_matrix_entry() {
         let mut graph = CompressedGraphBuilder::new(false, 15, 0.3);
-        graph.add_adjacency_matrix_entry(42, 0, 0, None);
-        graph.add_adjacency_matrix_entry(67, 0, 1, None);
-        graph.add_adjacency_matrix_entry(u64::MAX, 1, 1, None);
+        graph.add_compressed_matrix_entry(42, 0, 0, None);
+        graph.add_compressed_matrix_entry(67, 0, 1, None);
+        graph.add_compressed_matrix_entry(u64::MAX, 1, 1, None);
         let graph = graph.finish();
 
-        assert_eq!(graph.get_adjacency_matrix_entry(0, 0), 42);
-        assert_eq!(graph.get_adjacency_matrix_entry(0, 1), 67);
-        assert_eq!(graph.get_adjacency_matrix_entry(1, 1), u64::MAX);
+        assert_eq!(graph.get_compressed_matrix_entry(0, 0), 42);
+        assert_eq!(graph.get_compressed_matrix_entry(0, 1), 67);
+        assert_eq!(graph.get_compressed_matrix_entry(1, 1), u64::MAX);
     }
 
     #[test]
     fn test_compressed_graph_matrix_representation_string() {
         let mut graph = CompressedGraphBuilder::new(false, 16, 0.3);
-        graph.add_adjacency_matrix_entry(300, 1, 1, None);
-        graph.add_adjacency_matrix_entry(10, 2, 1, None);
+        graph.add_compressed_matrix_entry(300, 1, 1, None);
+        graph.add_compressed_matrix_entry(10, 2, 1, None);
 
         let graph = graph.finish();
 
@@ -408,7 +549,7 @@ mod tests {
         assert_eq!(expected, graph.matrix_representation_string());
 
         let mut graph = CompressedGraphBuilder::new(false, 27, 0.3);
-        graph.add_adjacency_matrix_entry(9, 1, 1, None);
+        graph.add_compressed_matrix_entry(9, 1, 1, None);
 
         let graph = graph.finish();
 
@@ -419,7 +560,7 @@ mod tests {
     #[test]
     fn test_compressed_graph_does_edge_exist() {
         let mut graph = CompressedGraphBuilder::new(false, 16, 0.3);
-        graph.add_adjacency_matrix_entry(u64::MAX, 1, 1, None);
+        graph.add_compressed_matrix_entry(u64::MAX, 1, 1, None);
         let graph = graph.finish();
 
         assert!(!graph.does_edge_exist(8, 7));
@@ -444,9 +585,9 @@ mod tests {
     #[test]
     fn test_compressed_graph_to_from_bytes() {
         let mut graph = CompressedGraphBuilder::new(false, 100, 0.3);
-        graph.add_adjacency_matrix_entry(300, 1, 1, None);
-        graph.add_adjacency_matrix_entry(10, 2, 1, None);
-        graph.add_adjacency_matrix_entry(8, 4, 3, None);
+        graph.add_compressed_matrix_entry(300, 1, 1, None);
+        graph.add_compressed_matrix_entry(10, 2, 1, None);
+        graph.add_compressed_matrix_entry(8, 4, 3, None);
         let graph = graph.finish();
 
         let bytes = graph.to_bytes();
@@ -484,7 +625,7 @@ mod tests {
     #[test]
     fn test_compressed_graph_decompress() {
         let mut graph = CompressedGraphBuilder::new(false, 16, 0.3);
-        graph.add_adjacency_matrix_entry(u64::MAX, 1, 1, None);
+        graph.add_compressed_matrix_entry(u64::MAX, 1, 1, None);
         let graph = graph.finish();
 
         let decompressed_graph = graph.decompress();
@@ -522,13 +663,13 @@ mod tests {
     }
 
     #[test]
-    fn test_compressed_graph_builder_add_adjacency_matrix_entry() {
+    fn test_compressed_graph_builder_add_compressed_matrix_entry() {
         let mut builder = CompressedGraphBuilder::new(false, 10, 0.42);
 
-        builder.add_adjacency_matrix_entry(0x00000000000000ff, 2, 1, None);
+        builder.add_compressed_matrix_entry(0x00000000000000ff, 2, 1, None);
         assert_eq!(builder.graph.edge_count, 8);
 
-        builder.add_adjacency_matrix_entry(0x00000000000ff001, 0, 1, Some(9));
+        builder.add_compressed_matrix_entry(0x00000000000ff001, 0, 1, Some(9));
         assert_eq!(builder.graph.edge_count, 17);
 
         assert_eq!(
@@ -542,14 +683,14 @@ mod tests {
     }
 
     #[test]
-    fn test_compressed_graph_builder_set_min_adjacency_matrix_dimension() {
+    fn test_compressed_graph_builder_set_min_compressed_matrix_dimension() {
         let mut builder = CompressedGraphBuilder::new(true, 64, 0.42);
         assert_eq!(builder.graph.adjacency_matrix.dimension(), 8);
 
-        builder.set_min_adjacency_matrix_dimension(4);
+        builder.set_min_compressed_matrix_dimension(4);
         assert_eq!(builder.graph.adjacency_matrix.dimension(), 8);
 
-        builder.set_min_adjacency_matrix_dimension(40);
+        builder.set_min_compressed_matrix_dimension(40);
         assert_eq!(builder.graph.adjacency_matrix.dimension(), 40);
     }
 
@@ -557,8 +698,8 @@ mod tests {
     fn test_compressed_graph_builder_finish() {
         let mut builder = CompressedGraphBuilder::new(false, 10, 0.07);
 
-        builder.set_min_adjacency_matrix_dimension(7);
-        builder.add_adjacency_matrix_entry(u64::MAX, 1, 1, None);
+        builder.set_min_compressed_matrix_dimension(7);
+        builder.add_compressed_matrix_entry(u64::MAX, 1, 1, None);
 
         let builder_is_undirected = builder.graph.is_undirected;
         let builder_threshold = builder.graph.threshold;

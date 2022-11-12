@@ -435,10 +435,10 @@ impl StandardGraph {
     /// assert_eq!(compressed_graph.edge_count(), 96); // 64 + 32
     ///
     /// // Because half of the 8x8 block was filled, half of the bits in the u64 are ones.
-    /// assert_eq!(compressed_graph.get_adjacency_matrix_entry(0, 0),0x00000000ffffffffu64);
+    /// assert_eq!(compressed_graph.get_compressed_matrix_entry(0, 0),0x00000000ffffffffu64);
     ///
     /// // Because the entire 8x8 block was filled, the block is represented with u64::MAX
-    /// assert_eq!(compressed_graph.get_adjacency_matrix_entry(1, 1), u64::MAX);
+    /// assert_eq!(compressed_graph.get_compressed_matrix_entry(1, 1), u64::MAX);
     /// ```
     pub fn compress(&self, threshold: f64) -> CompressedGraph {
         let threshold = util::clamp_threshold(threshold);
@@ -453,7 +453,7 @@ impl StandardGraph {
         }
         let blocks_per_row = blocks_per_row;
 
-        builder.set_min_adjacency_matrix_dimension(blocks_per_row);
+        builder.set_min_compressed_matrix_dimension(blocks_per_row);
 
         let avg_pool_matrix = self.find_avg_pool_matrix(COMPRESSION_BLOCK_DIMENSION);
         for (entry, col, row) in &avg_pool_matrix {
@@ -478,7 +478,7 @@ impl StandardGraph {
                     }
                 }
 
-                builder.add_adjacency_matrix_entry(
+                builder.add_compressed_matrix_entry(
                     compressed_entry,
                     col,
                     row,
@@ -1267,10 +1267,10 @@ mod tests {
         assert_eq!(compressed_graph.edge_count(), 96); // 64 + 32
 
         assert_eq!(
-            compressed_graph.get_adjacency_matrix_entry(0, 0),
+            compressed_graph.get_compressed_matrix_entry(0, 0),
             0x00000000ffffffffu64
         );
-        assert_eq!(compressed_graph.get_adjacency_matrix_entry(1, 1), u64::MAX);
+        assert_eq!(compressed_graph.get_compressed_matrix_entry(1, 1), u64::MAX);
 
         let compressed_graph = graph.compress(0.6);
 
@@ -1280,7 +1280,7 @@ mod tests {
         assert_eq!(compressed_graph.vertex_count(), 24);
         assert_eq!(compressed_graph.edge_count(), 64);
 
-        assert_eq!(compressed_graph.get_adjacency_matrix_entry(1, 1), u64::MAX);
+        assert_eq!(compressed_graph.get_compressed_matrix_entry(1, 1), u64::MAX);
 
         let compressed_graph = graph.compress(1.0);
 
@@ -1290,7 +1290,7 @@ mod tests {
         assert_eq!(compressed_graph.vertex_count(), 24);
         assert_eq!(compressed_graph.edge_count(), 64);
 
-        assert_eq!(compressed_graph.get_adjacency_matrix_entry(1, 1), u64::MAX);
+        assert_eq!(compressed_graph.get_compressed_matrix_entry(1, 1), u64::MAX);
 
         let mut graph = StandardGraph::new_undirected();
         graph.add_vertex(23, None);
@@ -1319,14 +1319,14 @@ mod tests {
         assert_eq!(compressed_graph.edge_count(), 128); // 64 + 32 + 32
 
         assert_eq!(
-            compressed_graph.get_adjacency_matrix_entry(1, 0),
+            compressed_graph.get_compressed_matrix_entry(1, 0),
             0x00000000ffffffffu64
         );
         assert_eq!(
-            compressed_graph.get_adjacency_matrix_entry(0, 1),
+            compressed_graph.get_compressed_matrix_entry(0, 1),
             0x0f0f0f0f0f0f0f0fu64
         );
-        assert_eq!(compressed_graph.get_adjacency_matrix_entry(1, 1), u64::MAX);
+        assert_eq!(compressed_graph.get_compressed_matrix_entry(1, 1), u64::MAX);
 
         let mut graph = StandardGraph::new_directed();
         graph.add_vertex(23, None);
