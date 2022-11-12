@@ -108,11 +108,11 @@ impl<T: Debug + Display + Numeric> CsrSquareMatrix<T> {
         let entry_left_padding = entry_size - smallest_entry_chars;
         let chars_per_entry = entry_size + 2;
 
-        let mut buffer = MaybeUninit::new(Vec::with_capacity(
-            EXTRA_CHARS_PER_ROW_TOTAL * self.dimension as usize
-                + chars_per_entry * (self.dimension * self.dimension) as usize
-                - 2,
-        ));
+        let buffer_size = EXTRA_CHARS_PER_ROW_TOTAL * self.dimension as usize
+            + chars_per_entry * (self.dimension * self.dimension) as usize
+            - 2;
+
+        let mut buffer = MaybeUninit::new(Vec::with_capacity(buffer_size));
 
         let buffer_ptr = unsafe {
             (*buffer.as_mut_ptr()).set_len((*buffer.as_mut_ptr()).capacity());

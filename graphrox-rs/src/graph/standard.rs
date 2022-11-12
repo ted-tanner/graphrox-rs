@@ -1,5 +1,6 @@
 use std::convert::{Into, TryFrom};
 use std::mem;
+use std::ptr;
 
 use crate::error::GraphRoxError;
 use crate::graph::compressed::{CompressedGraph, CompressedGraphBuilder};
@@ -519,28 +520,45 @@ impl GraphRepresentation for StandardGraph {
             * mem::size_of::<u64>()
             + mem::size_of::<GraphBytesHeader>();
 
-        let mut buffer = Vec::with_capacity(buffer_size);
+        let mut buffer = mem::MaybeUninit::new(Vec::with_capacity(buffer_size));
+
+        let buffer_ptr = unsafe {
+            (*buffer.as_mut_ptr()).set_len((*buffer.as_mut_ptr()).capacity());
+            (*buffer.as_mut_ptr()).as_mut_ptr() as *mut u8
+        };
 
         let header_bytes = unsafe { util::as_byte_slice(&header) };
+
+        let mut pos: usize = 0;
+
         for byte in header_bytes {
-            buffer.push(*byte);
+            unsafe {
+                ptr::write(buffer_ptr.add(pos), *byte);
+                pos += 1;
+            }
         }
 
         for (col, row) in &self.adjacency_matrix {
             let col_be = col.to_be();
             let row_be = row.to_be();
 
-            let col_bytes = unsafe { util::as_byte_slice(&col_be) };
-            let row_bytes = unsafe { util::as_byte_slice(&row_be) };
+            unsafe {
+                let col_bytes = util::as_byte_slice(&col_be);
+                let row_bytes = util::as_byte_slice(&row_be);
 
-            for byte in col_bytes {
-                buffer.push(*byte);
-            }
+                for byte in col_bytes {
+                    ptr::write(buffer_ptr.add(pos), *byte);
+                    pos += 1;
+                }
 
-            for byte in row_bytes {
-                buffer.push(*byte);
+                for byte in row_bytes {
+                    ptr::write(buffer_ptr.add(pos), *byte);
+                    pos += 1;
+                }
             }
         }
+
+        let buffer = unsafe { buffer.assume_init() };
 
         buffer
     }

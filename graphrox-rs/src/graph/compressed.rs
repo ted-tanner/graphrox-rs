@@ -1,6 +1,7 @@
 use std::convert::{Into, TryFrom};
 use std::mem;
 use std::num::Wrapping;
+use std::ptr;
 
 use crate::error::GraphRoxError;
 use crate::graph::standard::StandardGraph;
@@ -224,11 +225,22 @@ impl GraphRepresentation for CompressedGraph {
             * mem::size_of::<u64>()
             + mem::size_of::<CompressedGraphBytesHeader>();
 
-        let mut buffer = Vec::with_capacity(buffer_size);
+        let mut buffer = mem::MaybeUninit::new(Vec::with_capacity(buffer_size));
+
+        let buffer_ptr = unsafe {
+            (*buffer.as_mut_ptr()).set_len((*buffer.as_mut_ptr()).capacity());
+            (*buffer.as_mut_ptr()).as_mut_ptr() as *mut u8
+        };
 
         let header_bytes = unsafe { util::as_byte_slice(&header) };
+
+        let mut pos: usize = 0;
+
         for byte in header_bytes {
-            buffer.push(*byte);
+            unsafe {
+                ptr::write(buffer_ptr.add(pos), *byte);
+                pos += 1;
+            }
         }
 
         for (entry, col, row) in &self.adjacency_matrix {
@@ -236,22 +248,29 @@ impl GraphRepresentation for CompressedGraph {
             let col_be = col.to_be();
             let row_be = row.to_be();
 
-            let entry_bytes = unsafe { util::as_byte_slice(&entry_be) };
-            let col_bytes = unsafe { util::as_byte_slice(&col_be) };
-            let row_bytes = unsafe { util::as_byte_slice(&row_be) };
+            unsafe {
+                let entry_bytes = util::as_byte_slice(&entry_be);
+                let col_bytes = util::as_byte_slice(&col_be);
+                let row_bytes = util::as_byte_slice(&row_be);
 
-            for byte in entry_bytes {
-                buffer.push(*byte);
-            }
+                for byte in entry_bytes {
+                    ptr::write(buffer_ptr.add(pos), *byte);
+                    pos += 1;
+                }
 
-            for byte in col_bytes {
-                buffer.push(*byte);
-            }
+                for byte in col_bytes {
+                    ptr::write(buffer_ptr.add(pos), *byte);
+                    pos += 1;
+                }
 
-            for byte in row_bytes {
-                buffer.push(*byte);
+                for byte in row_bytes {
+                    ptr::write(buffer_ptr.add(pos), *byte);
+                    pos += 1;
+                }
             }
         }
+
+        let buffer = unsafe { buffer.assume_init() };
 
         buffer
     }
@@ -448,7 +467,7 @@ impl CompressedGraphBuilder {
             },
         }
     }
-    
+
     /// Adds a `u64` as an entry to the compressed matrix representation of the underlying
     /// graph at the given `col` and `row` in the matrix. Each entry represents an 8x8 block of
     /// entries in the adjacency matrix of an uncompressed graph.
