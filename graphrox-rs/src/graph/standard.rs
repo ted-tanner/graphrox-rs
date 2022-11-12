@@ -21,6 +21,33 @@ struct GraphBytesHeader {
     is_weighted: u8,
 }
 
+/// A representation of a network graph. Graphs are stored as a sparse edge list using a
+/// HashMap of HashSets.
+///
+/// `graphrox::Graph`s can be either directed or undirected. If the graph is undirected, each
+/// edge that is added to the graph will be replicated such that an edge from y to x is
+/// created whenever an edge from x to y is created (unless x and y are the same edge).
+///
+/// ```
+/// use graphrox::{Graph, GraphRepresentation};
+///
+/// let mut undirected_graph = Graph::new_undirected();
+/// assert!(undirected_graph.is_undirected());
+///
+/// undirected_graph.add_edge(3, 5);
+///
+/// assert!(undirected_graph.does_edge_exist(3, 5));
+/// assert!(undirected_graph.does_edge_exist(5, 3));
+///
+/// // A directed graph does not replicate edges
+/// let mut directed_graph = Graph::new_directed();
+/// assert!(!directed_graph.is_undirected());
+///
+/// directed_graph.add_edge(3, 5);
+///
+/// assert!(directed_graph.does_edge_exist(3, 5));
+/// assert!(!directed_graph.does_edge_exist(5, 3));
+/// ```
 #[derive(Clone, Debug)]
 pub struct StandardGraph {
     is_undirected: bool,
@@ -28,6 +55,19 @@ pub struct StandardGraph {
 }
 
 impl StandardGraph {
+    /// Creates a new undirected `graphrox::Graph`
+    ///
+    /// ```
+    /// use graphrox::{Graph, GraphRepresentation};
+    ///
+    /// let mut undirected_graph = Graph::new_undirected();
+    /// assert!(undirected_graph.is_undirected());
+    ///
+    /// undirected_graph.add_edge(3, 5);
+    ///
+    /// assert!(undirected_graph.does_edge_exist(3, 5));
+    /// assert!(undirected_graph.does_edge_exist(5, 3));
+    /// ```
     pub fn new_undirected() -> Self {
         Self {
             is_undirected: true,
@@ -35,6 +75,18 @@ impl StandardGraph {
         }
     }
 
+    /// Creates a new directed `graphrox::Graph`
+    ///
+    /// ```
+    /// use graphrox::{Graph, GraphRepresentation};
+    ///
+    /// let mut directed_graph = Graph::new_directed();
+    /// assert!(!directed_graph.is_undirected());
+    ///
+    /// directed_graph.add_edge(3, 5);
+    ///
+    /// assert!(directed_graph.does_edge_exist(3, 5));
+    /// ```
     pub fn new_directed() -> Self {
         Self {
             is_undirected: false,
@@ -42,6 +94,37 @@ impl StandardGraph {
         }
     }
 
+    /// Adds a vertex to a graph. If `None` is passed in as the `to_edges` parameter (or if the
+    /// paramter is `Some` but contains an empty slice), a call to `add_vertex` will do nothing
+    /// more than set the graph's vertex count to `vertex_id + 1` if `vertex_id` is greater
+    /// than or equal to the graph's vertex count.
+    ///
+    /// If `to_edges` is `Some` and the contained slice is not empty, an edge will be created
+    /// between `vertex_id` and each of the vertices whose IDs appear in the `to_edges` slice.
+    /// If an edge already exists, it will *not* be duplicated. If a vertex whose ID appears in
+    /// `to_edges` or `vertex_id` is greater than or equal to the graph's vertex count, the
+    /// vertex count will be increased. For undirected graphs, each edge will be replicated
+    /// such that an edge from y to x is created whenever an edge from x to y is created
+    /// (unless x and y are the same edge).
+    ///
+    /// ```
+    /// use graphrox::{Graph, GraphRepresentation};
+    ///
+    /// let mut graph = Graph::new_undirected();
+    ///
+    /// graph.add_vertex(3, Some(&[3, 5, 6]));
+    ///
+    /// assert_eq!(graph.vertex_count(), 7);
+    /// assert!(graph.does_edge_exist(3, 3));
+    /// assert!(graph.does_edge_exist(3, 5));
+    /// assert!(graph.does_edge_exist(5, 3));
+    /// assert!(graph.does_edge_exist(3, 6));
+    /// assert!(graph.does_edge_exist(6, 3));
+    ///
+    /// graph.add_vertex(100, None);
+    ///
+    /// assert_eq!(graph.vertex_count(), 101);
+    /// ```
     pub fn add_vertex(&mut self, vertex_id: u64, to_edges: Option<&[u64]>) {
         let added_edge = if let Some(to_edges) = to_edges {
             for edge in to_edges {
@@ -53,13 +136,30 @@ impl StandardGraph {
             false
         };
 
-        if !added_edge {
+        if !added_edge && vertex_id >= self.vertex_count() {
             // Don't add an edge, but increase the adjacency matrix dimension by adding
             // a zero entry
             self.adjacency_matrix.set_entry(0, vertex_id, 0);
         }
     }
 
+    /// Adds an edge to a graph. If either of the `from_vertex_id` or `to_vertex_id` is greater
+    /// than or equal to the graph's vertex count, the graph's vertex count is increased to
+    /// accomodate the given vertex ID. If the graph is undirected and `from_vertex_id` is not
+    /// equal to `to_vertex_id`, the edge will be replicated such that an edge from y to x is
+    /// created whenever an edge from x to y is created.
+    ///
+    /// ```
+    /// use graphrox::{Graph, GraphRepresentation};
+    ///
+    /// let mut graph = Graph::new_undirected();
+    ///
+    /// graph.add_edge(3, 5);
+    ///
+    /// assert_eq!(graph.vertex_count(), 6);
+    /// assert!(graph.does_edge_exist(3, 5));
+    /// assert!(graph.does_edge_exist(5, 3));
+    /// ```
     pub fn add_edge(&mut self, from_vertex_id: u64, to_vertex_id: u64) {
         self.adjacency_matrix
             .set_entry(1, from_vertex_id, to_vertex_id);
@@ -70,6 +170,27 @@ impl StandardGraph {
         }
     }
 
+    /// Deletes an edge from a graph. If the graph is directed, only the edge `(from_vertex_id,
+    /// to_vertex_id)` will be deleted. If the graph is undirected, then edge `(to_vertex_id,
+    /// from_vertex_id)` will be deleted as well as `(from_vertex_id, to_vertex_id)`.
+    ///
+    /// ```
+    /// use graphrox::{Graph, GraphRepresentation};
+    ///
+    /// let mut graph = Graph::new_undirected();
+    /// graph.add_edge(3, 5);
+    ///
+    /// // Because the graph is undirected, two edges exist: (3, 5) and (5, 3)
+    /// assert_eq!(graph.edge_count(), 2);
+    ///
+    /// // It doesn't matter if we call delete_edge(5, 3) or delete_edge(3, 5). The behavior
+    /// // will be the same for either call.
+    /// graph.delete_edge(5, 3);
+    ///
+    /// assert_eq!(graph.edge_count(), 0);
+    /// assert!(!graph.does_edge_exist(3, 5));
+    /// assert!(!graph.does_edge_exist(5, 3));
+    /// ```
     pub fn delete_edge(&mut self, from_vertex_id: u64, to_vertex_id: u64) {
         self.adjacency_matrix
             .zero_entry(from_vertex_id, to_vertex_id);
@@ -80,6 +201,48 @@ impl StandardGraph {
         }
     }
 
+    /// Applies average pooling to a graph's adjacency matrix to construct a matrix of lower
+    /// dimensionality. The adjacency matrix will be partitioned into blocks with a dimension
+    /// of `block_dimension` and then the matrix entries within each partition will be average
+    /// pooled and placed in a new, smaller matrix.
+    ///
+    /// ```
+    /// use graphrox::{Graph, GraphRepresentation};
+    ///
+    /// let mut graph = Graph::new_directed();
+    ///
+    /// graph.add_vertex(0, Some(&[1, 2, 6]));
+    /// graph.add_vertex(1, Some(&[1, 2]));
+    /// graph.add_vertex(2, Some(&[0, 1]));
+    /// graph.add_vertex(3, Some(&[1, 2, 4]));
+    /// graph.add_vertex(5, Some(&[6, 7]));
+    /// graph.add_vertex(6, Some(&[6]));
+    /// graph.add_vertex(7, Some(&[6]));
+    ///
+    /// let avg_pool_matrix = graph.find_avg_pool_matrix(2);
+    ///
+    /// println!("{}", graph.matrix_representation_string());
+    /// println!();
+    /// println!("{}", avg_pool_matrix.to_string());
+    ///
+    /// /* Ouput:
+    ///
+    /// [ 0, 0, 1, 0, 0, 0, 0, 0 ]
+    /// [ 1, 1, 1, 1, 0, 0, 0, 0 ]
+    /// [ 1, 1, 0, 1, 0, 0, 0, 0 ]
+    /// [ 0, 0, 0, 0, 0, 0, 0, 0 ]
+    /// [ 0, 0, 0, 1, 0, 0, 0, 0 ]
+    /// [ 0, 0, 0, 0, 0, 0, 0, 0 ]
+    /// [ 1, 0, 0, 0, 0, 1, 1, 1 ]
+    /// [ 0, 0, 0, 0, 0, 1, 0, 0 ]
+    ///
+    /// [ 0.50, 0.75, 0.00, 0.00 ]
+    /// [ 0.50, 0.25, 0.00, 0.00 ]
+    /// [ 0.00, 0.25, 0.00, 0.00 ]
+    /// [ 0.25, 0.00, 0.50, 0.50 ]
+    ///
+    /// */
+    /// ```
     pub fn find_avg_pool_matrix(&self, block_dimension: u64) -> CsrSquareMatrix<f64> {
         if self.vertex_count() == 0 {
             return CsrSquareMatrix::new();
