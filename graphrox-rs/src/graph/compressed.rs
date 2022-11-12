@@ -414,10 +414,6 @@ impl TryFrom<&[u8]> for CompressedGraph {
 /// assert!(compressed_graph.does_edge_exist(15, 15));
 /// assert!(compressed_graph.does_edge_exist(15, 8));
 /// assert!(compressed_graph.does_edge_exist(8, 15));
-///
-/// assert!(compressed_graph.does_edge_exist(10, 8));
-/// assert!(compressed_graph.does_edge_exist(10, 10));
-/// assert!(compressed_graph.does_edge_exist(14, 15));
 /// ```
 pub struct CompressedGraphBuilder {
     graph: CompressedGraph,
@@ -517,10 +513,6 @@ impl CompressedGraphBuilder {
     /// assert!(compressed_graph.does_edge_exist(15, 15));
     /// assert!(compressed_graph.does_edge_exist(15, 8));
     /// assert!(compressed_graph.does_edge_exist(8, 15));
-    ///
-    /// assert!(compressed_graph.does_edge_exist(10, 8));
-    /// assert!(compressed_graph.does_edge_exist(10, 10));
-    /// assert!(compressed_graph.does_edge_exist(14, 15));
     /// ```
     pub fn add_compressed_matrix_entry(
         &mut self,
