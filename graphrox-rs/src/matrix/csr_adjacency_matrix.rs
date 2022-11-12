@@ -189,7 +189,7 @@ impl<'a> IntoIterator for &'a CsrAdjacencyMatrix {
 ///
 /// ```
 /// use graphrox::matrix::{CsrAdjacencyMatrix, MatrixRepresentation};
-/// 
+///
 /// let mut matrix = CsrAdjacencyMatrix::new();
 ///  
 /// matrix.set_entry(1, 0, 0);
@@ -200,16 +200,16 @@ impl<'a> IntoIterator for &'a CsrAdjacencyMatrix {
 /// assert_eq!(matrix_entries.len() as u64, matrix.entry_count());
 /// assert!(matrix_entries.contains(&(0, 0)));
 /// assert!(matrix_entries.contains(&(1, 2)));
-/// 
+///
 /// for (col, row) in &matrix {
 ///     println!("Entry at ({}, {})", col, row);
 /// }
-/// 
+///
 /// /* Prints the following in arbitrary order:
-/// 
+///
 /// Entry at (1, 2)
 /// Entry at (0, 0)
-/// 
+///
 /// */
 /// ```
 pub struct CsrAdjacencyMatrixIter<'a> {

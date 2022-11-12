@@ -252,8 +252,8 @@ pub mod graph;
 pub mod matrix;
 
 pub use graph::compressed::CompressedGraph;
-pub use graph::standard::StandardGraph as Graph;
 pub use graph::graph_traits::GraphRepresentation;
+pub use graph::standard::StandardGraph as Graph;
 
 /// A small collection of utilities for constructing graphs with low performance overhead.
 /// For performance reasons, constraints are not checked on these builders. Users of the

@@ -296,7 +296,7 @@ impl<'a, T: Debug + Display + Numeric> IntoIterator for &'a CsrSquareMatrix<T> {
 ///
 /// ```
 /// use graphrox::matrix::{CsrSquareMatrix, MatrixRepresentation};
-/// 
+///
 /// let mut matrix = CsrSquareMatrix::new();
 ///  
 /// matrix.set_entry(5.5, 0, 0);
@@ -307,16 +307,16 @@ impl<'a, T: Debug + Display + Numeric> IntoIterator for &'a CsrSquareMatrix<T> {
 /// assert_eq!(matrix_entries.len() as u64, matrix.entry_count());
 /// assert!(matrix_entries.contains(&(5.5, 0, 0)));
 /// assert!(matrix_entries.contains(&(-7.8, 1, 2)));
-/// 
+///
 /// for (entry, col, row) in &matrix {
 ///     println!("Entry {} at ({}, {})", entry, col, row);
 /// }
-/// 
+///
 /// /* Prints the following in arbitrary order:
-/// 
+///
 /// Entry -7.8 at (1, 2)
 /// Entry 5.5 at (0, 0)
-/// 
+///
 /// */
 /// ```
 pub struct CsrSquareMatrixIter<'a, T: Debug + Display + Numeric> {
