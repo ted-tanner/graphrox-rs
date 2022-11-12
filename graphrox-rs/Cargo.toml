@@ -5,6 +5,7 @@ version.workspace = true
 edition.workspace = true
 description.workspace = true
 license.workspace = true
+readme = "Readme.md"
 keywords = ["graph", "machine-learning", "approximation"]
 categories = ["data-structures", "science"]
 

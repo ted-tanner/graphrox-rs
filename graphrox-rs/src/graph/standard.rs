@@ -206,6 +206,9 @@ impl StandardGraph {
     /// of `block_dimension` and then the matrix entries within each partition will be average
     /// pooled and placed in a new, smaller matrix.
     ///
+    /// The graph's adjacency matrix will be padded with zeros if a block to be average pooled
+    /// does not fit withing the adjacency matrix.
+    ///
     /// ```
     /// use graphrox::{Graph, GraphRepresentation};
     ///
@@ -292,6 +295,64 @@ impl StandardGraph {
         avg_pool_matrix
     }
 
+    /// Applies average pooling to a graph's adjacency matrix to construct an approximation of
+    /// the graph. The approximation will have a lower dimensionality than the original graph
+    /// (unless 0 is given for `block_dimension`). The adjacency matrix will be partitioned
+    /// into blocks with a dimension of `block_dimension` and then the matrix entries within
+    /// each partition will be average pooled. The given `threshold` will be applied to the
+    /// average pooled entries such that each entry that is greater than or equal to
+    /// `threshold` will become a 1 in the adjacency matrix of the resulting approximate graph.
+    /// Average pooled entries that are lower than `threshold` will become zeros in the
+    /// resulting approximate graph.
+    ///
+    /// The average pooled adjacency matrix entries will always be in the range of [0.0, 1.0]
+    /// inclusive. The `threshold` parameter is therefore clamped between 10^(-18) and 1.0.
+    /// Any `threshold` less than 10^(-18) will be treated as 10^(-18) and any `threshold`
+    /// greater than 1.0 will be treated as 1.0.
+    ///
+    /// If 0 is given for `block_dimension` or the graph's vertex count is less than or equal
+    /// to one, the graph will simply be cloned and `threshold` will be ignored.
+    ///
+    /// The graph's adjacency matrix will be padded with zeros if a block to be average pooled
+    /// does not fit withing the adjacency matrix.
+    ///
+    /// ```
+    /// use graphrox::{Graph, GraphRepresentation};
+    ///
+    /// let mut graph = Graph::new_directed();
+    ///
+    /// graph.add_vertex(0, Some(&[1, 2, 6]));
+    /// graph.add_vertex(1, Some(&[1, 2]));
+    /// graph.add_vertex(2, Some(&[0, 1]));
+    /// graph.add_vertex(3, Some(&[1, 2, 4]));
+    /// graph.add_vertex(5, Some(&[6, 7]));
+    /// graph.add_vertex(6, Some(&[6]));
+    /// graph.add_vertex(7, Some(&[6]));
+    ///
+    /// let approx_graph = graph.approximate(2, 0.5);
+    ///
+    /// println!("{}", graph.matrix_representation_string());
+    /// println!();
+    /// println!("{}", approx_graph.matrix_representation_string());
+    ///
+    /// /* Ouput:
+    ///
+    /// [ 0, 0, 1, 0, 0, 0, 0, 0 ]
+    /// [ 1, 1, 1, 1, 0, 0, 0, 0 ]
+    /// [ 1, 1, 0, 1, 0, 0, 0, 0 ]
+    /// [ 0, 0, 0, 0, 0, 0, 0, 0 ]
+    /// [ 0, 0, 0, 1, 0, 0, 0, 0 ]
+    /// [ 0, 0, 0, 0, 0, 0, 0, 0 ]
+    /// [ 1, 0, 0, 0, 0, 1, 1, 1 ]
+    /// [ 0, 0, 0, 0, 0, 1, 0, 0 ]
+    ///
+    /// [ 1, 1, 0, 0 ]
+    /// [ 1, 0, 0, 0 ]
+    /// [ 0, 0, 0, 0 ]
+    /// [ 0, 0, 1, 1 ]
+    ///
+    /// */
+    /// ```
     pub fn approximate(&self, block_dimension: u64, threshold: f64) -> Self {
         if block_dimension <= 1 || self.vertex_count() <= 1 {
             return self.clone();
@@ -1090,6 +1151,16 @@ mod tests {
 
         assert!(approx_graph.does_edge_exist(0, 0));
         assert!(approx_graph.does_edge_exist(1, 0));
+
+        let approx_graph = graph.approximate(0, 0.2);
+
+        assert_eq!(approx_graph.is_undirected(), graph.is_undirected());
+        assert_eq!(approx_graph.vertex_count(), graph.vertex_count());
+        assert_eq!(approx_graph.edge_count(), graph.edge_count());
+
+        for (col, row) in &graph {
+            assert!(approx_graph.does_edge_exist(col, row));
+        }
 
         let graph = StandardGraph::new_directed();
         let approx_graph = graph.approximate(4, 0.4);
