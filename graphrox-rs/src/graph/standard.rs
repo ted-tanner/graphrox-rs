@@ -95,6 +95,98 @@ impl StandardGraph {
         }
     }
 
+    /// Creates a new directed graph from the given adjacency matrix.
+    ///
+    /// ```
+    /// use graphrox::{Graph, GraphRepresentation};
+    /// use graphrox::matrix::{CsrAdjacencyMatrix, MatrixRepresentation};
+    ///
+    /// let mut matrix = CsrAdjacencyMatrix::new();
+    ///  
+    /// matrix.set_entry(1, 0, 0);
+    /// matrix.set_entry(1, 1, 2);
+    ///
+    /// let graph = Graph::directed_from(matrix);
+    ///
+    /// assert!(!graph.is_undirected());
+    /// assert_eq!(graph.edge_count(), 2);
+    /// assert_eq!(graph.vertex_count(), 3);
+    /// ```
+    pub fn directed_from(adjacency_matrix: CsrAdjacencyMatrix) -> Self {
+        Self {
+            is_undirected: false,
+            adjacency_matrix,
+        }
+    }
+
+    /// Creates a new undirected graph from the given adjacency matrix. This function will loop
+    /// over each non-zero entry in the matrix to verify the matrix represents an undirected
+    /// graph. In an undirected graph, if an entry at (col, row) is 1, the entry at (row, col)
+    /// must also be 1.
+    ///
+    /// ```
+    /// use graphrox::{Graph, GraphRepresentation};
+    /// use graphrox::matrix::{CsrAdjacencyMatrix, MatrixRepresentation};
+    ///
+    /// let mut matrix = CsrAdjacencyMatrix::new();
+    ///  
+    /// matrix.set_entry(1, 0, 0);
+    /// matrix.set_entry(1, 1, 2);
+    /// matrix.set_entry(1, 2, 1);
+    ///
+    /// let graph = Graph::undirected_from(matrix).unwrap();
+    ///
+    /// assert!(graph.is_undirected());
+    /// assert_eq!(graph.edge_count(), 3);
+    /// assert_eq!(graph.vertex_count(), 3);
+    /// ```
+    pub fn undirected_from(adjacency_matrix: CsrAdjacencyMatrix) -> Result<Self, GraphRoxError> {
+        for (col, row) in &adjacency_matrix {
+            if adjacency_matrix.get_entry(row, col) != 1 {
+                return Err(GraphRoxError::InvalidFormat(String::from(
+                    "The provided adjacency matrix does not represent an undirected graph",
+                )));
+            }
+        }
+
+        Ok(Self {
+            is_undirected: true,
+            adjacency_matrix,
+        })
+    }
+
+    /// Creates a new undirected graph from the given adjacency matrix without checking if the
+    /// given matrix is a valid representation of an undirected graph. In an undirected graph,
+    /// if an entry at (col, row) is 1, the entry at (row, col) must also be 1.
+    ///
+    /// # Safety
+    ///
+    /// If the provided adjacency matrix is not a valid representation of an undirected graph,
+    /// the behavior of calling methods on the graph is undefined.
+    ///
+    /// ```
+    /// use graphrox::{Graph, GraphRepresentation};
+    /// use graphrox::matrix::{CsrAdjacencyMatrix, MatrixRepresentation};
+    ///
+    /// let mut matrix = CsrAdjacencyMatrix::new();
+    ///  
+    /// matrix.set_entry(1, 0, 0);
+    /// matrix.set_entry(1, 1, 2);
+    /// matrix.set_entry(1, 2, 1);
+    ///
+    /// let graph = unsafe { Graph::undirected_from_unchecked(matrix) };
+    ///
+    /// assert!(graph.is_undirected());
+    /// assert_eq!(graph.edge_count(), 3);
+    /// assert_eq!(graph.vertex_count(), 3);
+    /// ```
+    pub unsafe fn undirected_from_unchecked(adjacency_matrix: CsrAdjacencyMatrix) -> Self {
+        Self {
+            is_undirected: true,
+            adjacency_matrix,
+        }
+    }
+
     /// Adds a vertex to a graph. If `None` is passed in as the `to_edges` parameter (or if the
     /// paramter is `Some` but contains an empty slice), a call to `add_vertex` will do nothing
     /// more than set the graph's vertex count to `vertex_id + 1` if `vertex_id` is greater
@@ -679,12 +771,12 @@ impl<'a> IntoIterator for &'a StandardGraph {
 /// use graphrox::{Graph, GraphRepresentation};
 ///
 /// let mut graph = Graph::new_directed();
-/// 
+///
 /// graph.add_edge(0, 0);
 /// graph.add_edge(1, 2);
-/// 
+///
 /// let graph_edges = graph.into_iter().collect::<Vec<_>>();
-/// 
+///
 /// assert_eq!(graph_edges.len() as u64, graph.edge_count());
 /// assert!(graph_edges.contains(&(0, 0)));
 /// assert!(graph_edges.contains(&(1, 2)));
@@ -723,6 +815,66 @@ mod tests {
 
         let graph = StandardGraph::new_directed();
         assert!(!graph.is_undirected);
+    }
+
+    #[test]
+    fn test_standard_graph_directed_from() {
+        let mut matrix = CsrAdjacencyMatrix::new();
+         
+        matrix.set_entry(1, 0, 0);
+        matrix.set_entry(1, 1, 2);
+
+        let graph = StandardGraph::directed_from(matrix.clone());
+        
+        assert!(!graph.is_undirected());
+        assert_eq!(graph.edge_count(), 2);
+        assert_eq!(graph.vertex_count(), 3);
+
+        for (col, row) in &matrix {
+            assert!(graph.does_edge_exist(col, row));
+        }
+    }
+
+    #[test]
+    fn test_standard_graph_undirected_from() {
+        let mut matrix = CsrAdjacencyMatrix::new();
+         
+        matrix.set_entry(1, 0, 0);
+        matrix.set_entry(1, 1, 2);
+        matrix.set_entry(1, 2, 1);
+
+        let graph = StandardGraph::undirected_from(matrix.clone()).unwrap();
+        
+        assert!(graph.is_undirected());
+        assert_eq!(graph.edge_count(), 3);
+        assert_eq!(graph.vertex_count(), 3);
+
+        for (col, row) in &matrix {
+            assert!(graph.does_edge_exist(col, row));
+        }
+
+        matrix.set_entry(1, 0, 1);
+
+        assert!(StandardGraph::undirected_from(matrix).is_err());
+    }
+
+    #[test]
+    fn test_standard_graph_undirected_from_unchecked() {
+        let mut matrix = CsrAdjacencyMatrix::new();
+         
+        matrix.set_entry(1, 0, 0);
+        matrix.set_entry(1, 1, 2);
+        matrix.set_entry(1, 2, 1);
+
+        let graph = unsafe { StandardGraph::undirected_from_unchecked(matrix.clone()) };
+        
+        assert!(graph.is_undirected());
+        assert_eq!(graph.edge_count(), 3);
+        assert_eq!(graph.vertex_count(), 3);
+
+        for (col, row) in &matrix {
+            assert!(graph.does_edge_exist(col, row));
+        }
     }
 
     #[test]
