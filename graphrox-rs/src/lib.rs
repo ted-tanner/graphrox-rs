@@ -242,23 +242,24 @@
 //! assert_eq!(compressed_graph_from_bytes.edge_count(), compressed_graph.edge_count());
 //! ```
 
-mod graph;
 mod util;
 
 /// Errors that can be returned from GraphRox functions.
 pub mod error;
+/// Utilities for working with GraphRox graphs.
+pub mod graph;
+/// Sparse GraphRox matrices in CSR format using efficient HashMaps and HashSets.
 pub mod matrix;
 
 pub use graph::compressed::CompressedGraph;
 pub use graph::standard::StandardGraph as Graph;
-pub use graph::GraphRepresentation;
+pub use graph::graph_traits::GraphRepresentation;
 
+/// A small collection of utilities for constructing graphs with low performance overhead.
+/// For performance reasons, constraints are not checked on these builders. Users of the
+/// builder interfaces must provide correct data for the graph to be valid. Use these
+/// builders at your own peril and be sure to read the documentation carefully to learn
+/// the constraints of each method.
 pub mod builder {
-    //! A small collection of utilities for constructing graphs with low performance overhead.
-    //! For performance reasons, constraints are not checked on these builders. Users of the
-    //! builder interfaces must provide correct data for the graph to be valid. Use these
-    //! builders at your own peril and be sure to read the documentation carefully to learn
-    //! the constraints of each method.
-
     pub use super::graph::compressed::CompressedGraphBuilder;
 }

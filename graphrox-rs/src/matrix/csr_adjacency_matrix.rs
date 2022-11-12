@@ -6,7 +6,7 @@ use std::mem::MaybeUninit;
 use std::ptr;
 use std::string::ToString;
 
-use crate::matrix::Matrix;
+use crate::matrix::MatrixRepresentation;
 
 #[derive(Clone, Debug)]
 pub struct CsrAdjacencyMatrix {
@@ -31,7 +31,7 @@ impl CsrAdjacencyMatrix {
     }
 }
 
-impl Matrix<u8> for CsrAdjacencyMatrix {
+impl MatrixRepresentation<u8> for CsrAdjacencyMatrix {
     fn dimension(&self) -> u64 {
         self.dimension
     }
@@ -184,6 +184,34 @@ impl<'a> IntoIterator for &'a CsrAdjacencyMatrix {
     }
 }
 
+/// Iterator for non-zero entries in a `graphrox::matrix::CsrAdjacencyMatrix`. Iteration is
+/// done in arbitrary order.
+///
+/// ```
+/// use graphrox::matrix::{CsrAdjacencyMatrix, MatrixRepresentation};
+/// 
+/// let mut matrix = CsrAdjacencyMatrix::new();
+///  
+/// matrix.set_entry(1, 0, 0);
+/// matrix.set_entry(1, 1, 2);
+///  
+/// let matrix_entries = matrix.into_iter().collect::<Vec<_>>();
+///  
+/// assert_eq!(matrix_entries.len() as u64, matrix.entry_count());
+/// assert!(matrix_entries.contains(&(0, 0)));
+/// assert!(matrix_entries.contains(&(1, 2)));
+/// 
+/// for (col, row) in &matrix {
+///     println!("Entry at ({}, {})", col, row);
+/// }
+/// 
+/// /* Prints the following in arbitrary order:
+/// 
+/// Entry at (1, 2)
+/// Entry at (0, 0)
+/// 
+/// */
+/// ```
 pub struct CsrAdjacencyMatrixIter<'a> {
     matrix: &'a CsrAdjacencyMatrix,
     col_iter: HashMapIter<'a, u64, HashSet<u64>>,

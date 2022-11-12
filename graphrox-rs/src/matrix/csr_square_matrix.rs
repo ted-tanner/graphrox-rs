@@ -6,7 +6,7 @@ use std::iter::{IntoIterator, Iterator};
 use std::mem::MaybeUninit;
 use std::ptr;
 
-use crate::matrix::Matrix;
+use crate::matrix::MatrixRepresentation;
 use crate::util::Numeric;
 
 #[derive(Clone, Debug)]
@@ -215,7 +215,7 @@ impl<T: Debug + Display + Numeric> CsrSquareMatrix<T> {
     }
 }
 
-impl<T: Debug + Display + Numeric> Matrix<T> for CsrSquareMatrix<T> {
+impl<T: Debug + Display + Numeric> MatrixRepresentation<T> for CsrSquareMatrix<T> {
     fn dimension(&self) -> u64 {
         self.dimension
     }
@@ -291,6 +291,34 @@ impl<'a, T: Debug + Display + Numeric> IntoIterator for &'a CsrSquareMatrix<T> {
     }
 }
 
+/// Iterator for non-zero entries in a `graphrox::matrix::CsrSquareMatrix`. Iteration is done
+/// in arbitrary order.
+///
+/// ```
+/// use graphrox::matrix::{CsrSquareMatrix, MatrixRepresentation};
+/// 
+/// let mut matrix = CsrSquareMatrix::new();
+///  
+/// matrix.set_entry(5.5, 0, 0);
+/// matrix.set_entry(-7.8, 1, 2);
+///  
+/// let matrix_entries = matrix.into_iter().collect::<Vec<_>>();
+///  
+/// assert_eq!(matrix_entries.len() as u64, matrix.entry_count());
+/// assert!(matrix_entries.contains(&(5.5, 0, 0)));
+/// assert!(matrix_entries.contains(&(-7.8, 1, 2)));
+/// 
+/// for (entry, col, row) in &matrix {
+///     println!("Entry {} at ({}, {})", entry, col, row);
+/// }
+/// 
+/// /* Prints the following in arbitrary order:
+/// 
+/// Entry -7.8 at (1, 2)
+/// Entry 5.5 at (0, 0)
+/// 
+/// */
+/// ```
 pub struct CsrSquareMatrixIter<'a, T: Debug + Display + Numeric> {
     matrix: &'a CsrSquareMatrix<T>,
     col_iter: HashMapIter<'a, u64, HashMap<u64, T>>,

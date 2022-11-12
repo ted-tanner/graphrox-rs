@@ -4,9 +4,9 @@ use std::num::Wrapping;
 use std::ptr;
 
 use crate::error::GraphRoxError;
+use crate::graph::graph_traits::GraphRepresentation;
 use crate::graph::standard::StandardGraph;
-use crate::graph::GraphRepresentation;
-use crate::matrix::{CsrSquareMatrix, Matrix};
+use crate::matrix::{CsrSquareMatrix, MatrixRepresentation};
 use crate::util::{self, constants::*};
 
 const COMPRESSED_GRAPH_BYTES_MAGIC_NUMBER: u32 = 0x71ff7aed;

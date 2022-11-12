@@ -4,9 +4,9 @@ use std::ptr;
 
 use crate::error::GraphRoxError;
 use crate::graph::compressed::{CompressedGraph, CompressedGraphBuilder};
-use crate::graph::GraphRepresentation;
+use crate::graph::graph_traits::GraphRepresentation;
 use crate::matrix::iter::CsrAdjacencyMatrixIter;
-use crate::matrix::{CsrAdjacencyMatrix, CsrSquareMatrix, Matrix};
+use crate::matrix::{CsrAdjacencyMatrix, CsrSquareMatrix, MatrixRepresentation};
 use crate::util::{self, constants::*};
 
 const GRAPH_BYTES_MAGIC_NUMBER: u32 = 0x7ae71ffd;
@@ -673,6 +673,33 @@ impl<'a> IntoIterator for &'a StandardGraph {
     }
 }
 
+/// Iterator for edges in a `graphrox::Graph`. Iteration is done in arbitrary order.
+///
+/// ```
+/// use graphrox::{Graph, GraphRepresentation};
+///
+/// let mut graph = Graph::new_directed();
+/// 
+/// graph.add_edge(0, 0);
+/// graph.add_edge(1, 2);
+/// 
+/// let graph_edges = graph.into_iter().collect::<Vec<_>>();
+/// 
+/// assert_eq!(graph_edges.len() as u64, graph.edge_count());
+/// assert!(graph_edges.contains(&(0, 0)));
+/// assert!(graph_edges.contains(&(1, 2)));
+///
+/// for (from_edge, to_edge) in &graph {
+///     println!("Edge from {} to {}", from_edge, to_edge);
+/// }
+///
+/// /* Prints the following in arbitrary order:
+///
+/// Edge from 1 to 2
+/// Edge from 0 to 0
+///
+/// */
+/// ```
 pub struct StandardGraphIter<'a> {
     adjacency_matrix_iter: CsrAdjacencyMatrixIter<'a>,
 }

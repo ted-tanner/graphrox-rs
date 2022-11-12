@@ -4,6 +4,7 @@ mod csr_square_matrix;
 pub use crate::matrix::csr_adjacency_matrix::CsrAdjacencyMatrix;
 pub use crate::matrix::csr_square_matrix::CsrSquareMatrix;
 
+/// Iterators for entries in GraphRox matrices.
 pub mod iter {
     pub use super::csr_adjacency_matrix::CsrAdjacencyMatrixIter;
     pub use super::csr_square_matrix::CsrSquareMatrixIter;
@@ -13,7 +14,9 @@ use std::fmt::Debug;
 
 use crate::util::Numeric;
 
-pub trait Matrix<T: Numeric>: Debug + ToString {
+pub trait MatrixRepresentation<T: Numeric>: Debug + ToString {
+    /// Returns the dimension of the matrix.
+    ///
     fn dimension(&self) -> u64;
     fn entry_count(&self) -> u64;
 
