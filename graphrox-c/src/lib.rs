@@ -7,5 +7,3 @@
 pub extern "C" fn rust_function() {
     todo!();
 }
-
-

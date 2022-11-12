@@ -132,10 +132,10 @@
 //!
 //! Graphs can be compressed into a space-efficient form. Using the same approximation
 //! technique mentioned above, a threshold can be applied to 8x8 blocks in a graph's adjacency
-//! matrix. If a given block in the matrix meets the threshold, the entire block will be
-//! losslessly encoded in an unsigned 64-bit integer. If the block does not meet the threshold,
-//! the entire block will be represented by a 0 in the resulting matrix. Because GraphRox
-//! stores matrices as adjacency lists, 0 entries have no effect on storage size.
+//! matrix. If a given block in the average pooling matrix meets the threshold, the entire
+//! block will be losslessly encoded in an unsigned 64-bit integer. If the block does not meet
+//! the threshold, the entire block will be represented by a 0 in the resulting matrix. Because
+//! GraphRox stores matrices as adjacency lists, 0 entries have no effect on storage size.
 //!
 //! A threshold of 0.0 is essentially a lossless compression.
 //!

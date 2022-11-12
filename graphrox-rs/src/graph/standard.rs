@@ -394,6 +394,52 @@ impl StandardGraph {
         approx_graph
     }
 
+    /// Graphs can be compressed into a space-efficient form. 8x8 blocks in the graph's
+    /// adjacency matrix are average pooled. A threshold is applied to the blocks. If a given
+    /// block in the average pooling matrix meets the threshold, the entire block will be
+    /// losslessly encoded in an unsigned 64-bit integer. If the block does not meet the
+    /// threshold, the entire block will be represented by a 0 in the resulting matrix. Because
+    /// GraphRox stores matrices as adjacency lists, 0 entries have no effect on storage size.
+    ///
+    /// The average pooled adjacency matrix entries will always be in the range of [0.0, 1.0]
+    /// inclusive. The `threshold` parameter is therefore clamped between 10^(-18) and 1.0.
+    /// Any `threshold` less than 10^(-18) will be treated as 10^(-18) and any `threshold`
+    /// greater than 1.0 will be treated as 1.0.
+    ///
+    /// A threshold of 0.0 is essentially a lossless compression.
+    ///
+    /// ```
+    /// use graphrox::{Graph, GraphRepresentation};
+    ///
+    /// let mut graph = Graph::new_directed();
+    /// graph.add_vertex(23, None);
+    ///
+    /// for i in 8..16 {
+    ///     for j in 8..16 {
+    ///         graph.add_edge(i, j);
+    ///     }
+    /// }
+    ///
+    /// for i in 0..8 {
+    ///     for j in 0..4 {
+    ///         graph.add_edge(i, j);
+    ///     }
+    /// }
+    ///
+    /// graph.add_edge(22, 18);
+    /// graph.add_edge(15, 18);
+    ///
+    /// let compressed_graph = graph.compress(0.2);
+    ///
+    /// assert_eq!(compressed_graph.vertex_count(), 24);
+    /// assert_eq!(compressed_graph.edge_count(), 96); // 64 + 32
+    ///
+    /// // Because half of the 8x8 block was filled, half of the bits in the u64 are ones.
+    /// assert_eq!(compressed_graph.get_adjacency_matrix_entry(0, 0),0x00000000ffffffffu64);
+    ///
+    /// // Because the entire 8x8 block was filled, the block is represented with u64::MAX
+    /// assert_eq!(compressed_graph.get_adjacency_matrix_entry(1, 1), u64::MAX);
+    /// ```
     pub fn compress(&self, threshold: f64) -> CompressedGraph {
         let threshold = util::clamp_threshold(threshold);
 
