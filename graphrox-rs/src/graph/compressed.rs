@@ -469,7 +469,8 @@ impl CompressedGraphBuilder {
     /// finished and the underlying `graphrox::CompressedGraph` is converted to or from bytes.
     /// If the weight is too small, the buffer allocated for the bytes will be too small. If
     /// the weight is too large, the buffer will be too large and undefined values will be
-    /// added to the end of the buffer.
+    /// added to the end of the buffer. If `None` is provided as a Hamming weight, there is
+    /// no risk of giving an incorrect Hamming weight.
     ///
     /// Do not call `add_compressed_matrix_entry` on the same entry twice. Doing so will
     /// replace the entry but will not adjust the entry count, causing it to be too large and
@@ -518,6 +519,36 @@ impl CompressedGraphBuilder {
         self.graph.adjacency_matrix.set_entry(entry, col, row);
     }
 
+    /// Consumes the CompressedGraphBuilder and returns the constructed
+    /// `graphrox::CompressedGraph`.
+    ///
+    /// # Safety
+    ///
+    /// If the CompressedGraphBuilder holds incorrect data, the resulting
+    /// `graphrox::CompressedGraph` will be invalid. This is particularly dangerous if the
+    /// entry count is wrong because it can result in undefined behavior, potentially including
+    /// a buffer overflow.
+    ///
+    /// The entry count can be wrong if an incorrect Hamming weight was given to
+    /// `add_compressed_matrix_entry()` or if `add_compressed_matrix_entry()` was called twice
+    /// for the same entry. If the entry count is wrong, it will almost certainly cause
+    /// undefined behavior when `finish()` is called on the `CompressedGraphBuilder` and then
+    /// the underlying `graphrox::CompressedGraph` is converted to or from bytes. If the entry
+    /// count is too small, the buffer allocated for the bytes will be too small. If the count
+    /// is too large, the buffer will be too large and undefined values will be added to the
+    /// end of the buffer.
+    ///
+    /// ```
+    /// use graphrox::GraphRepresentation;
+    /// use graphrox::builder::CompressedGraphBuilder;
+    ///
+    /// let builder = CompressedGraphBuilder::new(true, 70, 0.042);
+    /// let compressed_graph = unsafe { builder.finish() };
+    ///
+    /// assert!(compressed_graph.is_undirected());
+    /// assert_eq!(compressed_graph.vertex_count(), 70);
+    /// assert_eq!(compressed_graph.threshold(), 0.042);
+    /// ```
     pub unsafe fn finish(self) -> CompressedGraph {
         self.graph
     }
