@@ -1,4 +1,4 @@
-// #![deny(missing_docs)]
+#![deny(missing_docs)]
 
 //! GraphRox is a network graph library for efficiently generating approximations of graphs.
 //! GraphRox additionally provides a high-fidelity, lossy graph compression algorithm.

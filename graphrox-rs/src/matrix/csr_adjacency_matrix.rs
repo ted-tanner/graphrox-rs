@@ -8,6 +8,21 @@ use std::string::ToString;
 
 use crate::matrix::MatrixRepresentation;
 
+/// A matrix in CSR (Compressed Sparse Row) format. The matrix uses a HashMap to map columns
+/// to a HashSet of rows. Any matrix entry not contained in a HashSet is assumed to be zero.
+///
+/// ```
+/// use graphrox::matrix::{CsrAdjacencyMatrix, MatrixRepresentation};
+///
+/// let mut matrix = CsrAdjacencyMatrix::new();
+/// 
+/// matrix.set_entry(1, 0, 0);
+/// matrix.set_entry(1, 1, 2);
+///
+/// assert_eq!(matrix.get_entry(0, 0), 1);
+/// assert_eq!(matrix.get_entry(1, 2), 1);
+/// assert_eq!(matrix.get_entry(2, 2), 0);
+/// ```
 #[derive(Clone, Debug)]
 pub struct CsrAdjacencyMatrix {
     dimension: u64,

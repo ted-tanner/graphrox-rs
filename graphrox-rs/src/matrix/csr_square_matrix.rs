@@ -9,6 +9,22 @@ use std::ptr;
 use crate::matrix::MatrixRepresentation;
 use crate::util::Numeric;
 
+/// A matrix in CSR (Compressed Sparse Row) format. The matrix uses a HashMap to map columns
+/// to a HashMap mapping rows to entry values. Any matrix entry not contained in a row HashMap
+/// is assumed to be zero.
+///
+/// ```
+/// use graphrox::matrix::{CsrSquareMatrix, MatrixRepresentation};
+///
+/// let mut matrix = CsrSquareMatrix::new();
+/// 
+/// matrix.set_entry(5.7, 0, 0);
+/// matrix.set_entry(-17.1, 1, 2);
+///
+/// assert_eq!(matrix.get_entry(0, 0), 5.7);
+/// assert_eq!(matrix.get_entry(1, 2), -17.1);
+/// assert_eq!(matrix.get_entry(2, 2), 0.0);
+/// ```
 #[derive(Clone, Debug)]
 pub struct CsrSquareMatrix<T: Debug + Display + Numeric> {
     dimension: u64,
