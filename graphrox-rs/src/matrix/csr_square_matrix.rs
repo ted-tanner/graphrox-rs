@@ -23,6 +23,15 @@ impl<T: Debug + Display + Numeric> Default for CsrSquareMatrix<T> {
 }
 
 impl<T: Debug + Display + Numeric> CsrSquareMatrix<T> {
+    /// Creates a new, empty `CsrSquareMatrix`.
+    ///
+    /// ```
+    /// use graphrox::matrix::{CsrSquareMatrix, MatrixRepresentation};
+    ///
+    /// let matrix: CsrSquareMatrix<f64> = CsrSquareMatrix::new();
+    /// assert_eq!(matrix.dimension(), 0);
+    /// assert_eq!(matrix.entry_count(), 0);
+    /// ```
     pub fn new() -> Self {
         Self {
             dimension: 0,
@@ -31,6 +40,27 @@ impl<T: Debug + Display + Numeric> CsrSquareMatrix<T> {
         }
     }
 
+    /// Adds one to the specified entry.
+    ///
+    /// ```
+    /// use graphrox::matrix::{CsrSquareMatrix, MatrixRepresentation};
+    ///
+    /// let mut matrix: CsrSquareMatrix<f64> = CsrSquareMatrix::new();
+    ///
+    /// matrix.increment_entry(3, 4);
+    /// assert_eq!(matrix.get_entry(3, 4), 1.0);
+    ///
+    /// matrix.increment_entry(3, 4);
+    /// assert_eq!(matrix.get_entry(3, 4), 2.0);
+    ///
+    /// assert_eq!(matrix.entry_count(), 1);
+    /// assert_eq!(matrix.dimension(), 5);
+    ///
+    /// matrix.set_entry(3.2, 0, 1);
+    ///
+    /// matrix.increment_entry(0, 1);
+    /// assert_eq!(matrix.get_entry(0, 1), 4.2);
+    /// ```
     pub fn increment_entry(&mut self, col: u64, row: u64) {
         if col + 1 > self.dimension {
             self.dimension = col + 1
@@ -52,6 +82,42 @@ impl<T: Debug + Display + Numeric> CsrSquareMatrix<T> {
             .or_insert_with(T::one);
     }
 
+    /// Generates a string representation of a `CsrSquareMatrix`. Each entry in the matrix
+    /// string will have `decimal_digits` digits after the decimal. If `decimal_digits` is 0,
+    /// entries will not have a decimal.
+    ///
+    /// ```
+    /// use graphrox::matrix::{CsrSquareMatrix, MatrixRepresentation};
+    ///
+    /// let mut matrix = CsrSquareMatrix::new();
+    /// 
+    /// matrix.set_entry(1.3, 0, 0);
+    /// matrix.set_entry(1.0, 1, 2);
+    /// matrix.set_entry(0.847724, 2, 1);
+    /// matrix.set_entry(1.7, 1, 0);
+    ///
+    /// println!("{}", matrix.to_string_with_precision(3));
+    ///
+    /// /* Output:
+    ///
+    /// [ 1.300, 1.700, 0.000 ]
+    /// [ 0.000, 0.000, 0.848 ]
+    /// [ 0.000, 1.000, 0.000 ]
+    ///
+    /// */
+    /// 
+    /// matrix.set_entry(-10.12, 2, 2);
+    ///
+    /// println!("{}", matrix.to_string_with_precision(1));
+    ///
+    /// /* Output:
+    ///
+    /// [   1.3,   1.7,   0.0 ]
+    /// [   0.0,   0.0,   0.8 ]
+    /// [   0.0,   1.0, -10.1 ]
+    ///
+    /// */
+    /// ```
     pub fn to_string_with_precision(&self, decimal_digits: usize) -> String {
         const EXTRA_CHARS_PER_ROW_AT_FRONT: usize = 2; // "[ "
         const EXTRA_CHARS_PER_ROW_AT_BACK: usize = 3; // "]\r\n"
@@ -272,6 +338,47 @@ impl<T: Debug + Display + Numeric> MatrixRepresentation<T> for CsrSquareMatrix<T
 }
 
 impl<T: Debug + Display + Numeric> ToString for CsrSquareMatrix<T> {
+    /// Generates a string representation of a `CsrSquareMatrix`. Each entry in the matrix
+    /// string will have 2 digits after the decimal if the entries are of a floating-point
+    /// type. If the entries are of an integral type, the entries will have no decimal.
+    ///
+    /// ```
+    /// use graphrox::matrix::{CsrSquareMatrix, MatrixRepresentation};
+    ///
+    /// let mut matrix = CsrSquareMatrix::new();
+    /// 
+    /// matrix.set_entry(1.3, 0, 0);
+    /// matrix.set_entry(1.0, 1, 2);
+    /// matrix.set_entry(0.847724, 2, 1);
+    /// matrix.set_entry(10.7, 1, 0);
+    ///
+    /// println!("{}", matrix.to_string());
+    ///
+    /// /* Output:
+    ///
+    /// [  1.30, 10.70,  0.00 ]
+    /// [  0.00,  0.00,  0.85 ]
+    /// [  0.00,  1.00,  0.00 ]
+    ///
+    /// */
+    ///
+    /// let mut matrix = CsrSquareMatrix::new();
+    /// 
+    /// matrix.set_entry(1, 0, 0);
+    /// matrix.set_entry(7, 1, 2);
+    /// matrix.set_entry(-5, 2, 1);
+    /// matrix.set_entry(10, 1, 0);
+    ///
+    /// println!("{}", matrix.to_string());
+    ///
+    /// /* Output:
+    ///
+    /// [  1, 10,  0 ]
+    /// [  0,  0, -5 ]
+    /// [  0,  7,  0 ]
+    ///
+    /// */
+    /// ```
     fn to_string(&self) -> String {
         self.to_string_with_precision(if T::has_decimal() { 2 } else { 0 })
     }

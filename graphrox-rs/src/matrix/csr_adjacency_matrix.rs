@@ -22,6 +22,15 @@ impl Default for CsrAdjacencyMatrix {
 }
 
 impl CsrAdjacencyMatrix {
+    /// Creates a new, empty `CsrAdjacencyMatrix`.
+    ///
+    /// ```
+    /// use graphrox::matrix::{CsrAdjacencyMatrix, MatrixRepresentation};
+    ///
+    /// let matrix = CsrAdjacencyMatrix::new();
+    /// assert_eq!(matrix.dimension(), 0);
+    /// assert_eq!(matrix.entry_count(), 0);
+    /// ```
     pub fn new() -> Self {
         Self {
             dimension: 0,
@@ -85,6 +94,28 @@ impl MatrixRepresentation<u8> for CsrAdjacencyMatrix {
 }
 
 impl ToString for CsrAdjacencyMatrix {
+    /// Generates a string representation of a `CsrAdjacencyMatrix`.
+    ///
+    /// ```
+    /// use graphrox::matrix::{CsrAdjacencyMatrix, MatrixRepresentation};
+    ///
+    /// let mut matrix = CsrAdjacencyMatrix::new();
+    /// 
+    /// matrix.set_entry(1, 0, 0);
+    /// matrix.set_entry(1, 1, 2);
+    /// matrix.set_entry(1, 2, 1);
+    /// matrix.set_entry(1, 1, 0);
+    ///
+    /// println!("{}", matrix.to_string());
+    ///
+    /// /* Output:
+    ///
+    /// [ 1, 1, 0 ]
+    /// [ 0, 0, 1 ]
+    /// [ 0, 1, 0 ]
+    ///
+    /// */
+    /// ```
     fn to_string(&self) -> String {
         const EXTRA_CHARS_PER_ROW_AT_FRONT: usize = 2; // "[ "
         const EXTRA_CHARS_PER_ROW_AT_BACK: usize = 3; // "]\r\n"
