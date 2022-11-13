@@ -15,7 +15,7 @@ use crate::matrix::MatrixRepresentation;
 /// use graphrox::matrix::{CsrAdjacencyMatrix, MatrixRepresentation};
 ///
 /// let mut matrix = CsrAdjacencyMatrix::new();
-/// 
+///
 /// matrix.set_entry(1, 0, 0);
 /// matrix.set_entry(1, 1, 2);
 ///
@@ -115,7 +115,7 @@ impl ToString for CsrAdjacencyMatrix {
     /// use graphrox::matrix::{CsrAdjacencyMatrix, MatrixRepresentation};
     ///
     /// let mut matrix = CsrAdjacencyMatrix::new();
-    /// 
+    ///
     /// matrix.set_entry(1, 0, 0);
     /// matrix.set_entry(1, 1, 2);
     /// matrix.set_entry(1, 2, 1);

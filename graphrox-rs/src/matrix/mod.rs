@@ -23,13 +23,13 @@ pub trait MatrixRepresentation<T: Numeric>: Debug + ToString {
     ///
     /// let mut matrix = CsrAdjacencyMatrix::new();
     /// assert_eq!(matrix.dimension(), 0);
-    /// 
+    ///
     /// matrix.set_entry(1, 0, 0);
     /// assert_eq!(matrix.dimension(), 1);
-    /// 
+    ///
     /// matrix.set_entry(1, 4, 7);
     /// assert_eq!(matrix.dimension(), 8);
-    /// 
+    ///
     /// matrix.set_entry(0, 100, 1);
     /// assert_eq!(matrix.dimension(), 101);
     /// ```
@@ -42,10 +42,10 @@ pub trait MatrixRepresentation<T: Numeric>: Debug + ToString {
     ///
     /// let mut matrix = CsrAdjacencyMatrix::new();
     /// assert_eq!(matrix.entry_count(), 0);
-    /// 
+    ///
     /// matrix.set_entry(1, 0, 0);
     /// assert_eq!(matrix.entry_count(), 1);
-    /// 
+    ///
     /// matrix.set_entry(1, 4, 7);
     /// assert_eq!(matrix.entry_count(), 2);
     /// ```
@@ -62,7 +62,7 @@ pub trait MatrixRepresentation<T: Numeric>: Debug + ToString {
     /// assert_eq!(matrix.get_entry(5, 8), 0);
     /// matrix.set_entry(1, 5, 8);
     /// assert_eq!(matrix.get_entry(5, 8), 1);
-    /// 
+    ///
     /// assert_eq!(matrix.get_entry(7, 5), 0);
     /// matrix.set_entry(1, 7, 5);
     /// assert_eq!(matrix.get_entry(7, 5), 1);
@@ -78,7 +78,7 @@ pub trait MatrixRepresentation<T: Numeric>: Debug + ToString {
     ///
     /// matrix.set_entry(2.1, 5, 8);
     /// assert_eq!(matrix.get_entry(5, 8), 2.1);
-    /// 
+    ///
     /// matrix.set_entry(-3.5, 7, 5);
     /// assert_eq!(matrix.get_entry(7, 5), -3.5);
     ///

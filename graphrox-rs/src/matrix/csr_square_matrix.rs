@@ -17,7 +17,7 @@ use crate::util::Numeric;
 /// use graphrox::matrix::{CsrSquareMatrix, MatrixRepresentation};
 ///
 /// let mut matrix = CsrSquareMatrix::new();
-/// 
+///
 /// matrix.set_entry(5.7, 0, 0);
 /// matrix.set_entry(-17.1, 1, 2);
 ///
@@ -106,7 +106,7 @@ impl<T: Debug + Display + Numeric> CsrSquareMatrix<T> {
     /// use graphrox::matrix::{CsrSquareMatrix, MatrixRepresentation};
     ///
     /// let mut matrix = CsrSquareMatrix::new();
-    /// 
+    ///
     /// matrix.set_entry(1.3, 0, 0);
     /// matrix.set_entry(1.0, 1, 2);
     /// matrix.set_entry(0.847724, 2, 1);
@@ -121,7 +121,7 @@ impl<T: Debug + Display + Numeric> CsrSquareMatrix<T> {
     /// [ 0.000, 1.000, 0.000 ]
     ///
     /// */
-    /// 
+    ///
     /// matrix.set_entry(-10.12, 2, 2);
     ///
     /// println!("{}", matrix.to_string_with_precision(1));
@@ -362,7 +362,7 @@ impl<T: Debug + Display + Numeric> ToString for CsrSquareMatrix<T> {
     /// use graphrox::matrix::{CsrSquareMatrix, MatrixRepresentation};
     ///
     /// let mut matrix = CsrSquareMatrix::new();
-    /// 
+    ///
     /// matrix.set_entry(1.3, 0, 0);
     /// matrix.set_entry(1.0, 1, 2);
     /// matrix.set_entry(0.847724, 2, 1);
@@ -379,7 +379,7 @@ impl<T: Debug + Display + Numeric> ToString for CsrSquareMatrix<T> {
     /// */
     ///
     /// let mut matrix = CsrSquareMatrix::new();
-    /// 
+    ///
     /// matrix.set_entry(1, 0, 0);
     /// matrix.set_entry(7, 1, 2);
     /// matrix.set_entry(-5, 2, 1);

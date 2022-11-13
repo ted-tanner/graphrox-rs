@@ -144,7 +144,7 @@ impl StandardGraph {
         for (col, row) in &adjacency_matrix {
             if adjacency_matrix.get_entry(row, col) != 1 {
                 return Err(GraphRoxError::InvalidFormat(String::from(
-                    "The provided adjacency matrix does not represent an undirected graph",
+                    "The adjacency matrix does not represent an undirected graph",
                 )));
             }
         }
@@ -820,12 +820,12 @@ mod tests {
     #[test]
     fn test_standard_graph_directed_from() {
         let mut matrix = CsrAdjacencyMatrix::new();
-         
+
         matrix.set_entry(1, 0, 0);
         matrix.set_entry(1, 1, 2);
 
         let graph = StandardGraph::directed_from(matrix.clone());
-        
+
         assert!(!graph.is_undirected());
         assert_eq!(graph.edge_count(), 2);
         assert_eq!(graph.vertex_count(), 3);
@@ -838,13 +838,13 @@ mod tests {
     #[test]
     fn test_standard_graph_undirected_from() {
         let mut matrix = CsrAdjacencyMatrix::new();
-         
+
         matrix.set_entry(1, 0, 0);
         matrix.set_entry(1, 1, 2);
         matrix.set_entry(1, 2, 1);
 
         let graph = StandardGraph::undirected_from(matrix.clone()).unwrap();
-        
+
         assert!(graph.is_undirected());
         assert_eq!(graph.edge_count(), 3);
         assert_eq!(graph.vertex_count(), 3);
@@ -861,13 +861,13 @@ mod tests {
     #[test]
     fn test_standard_graph_undirected_from_unchecked() {
         let mut matrix = CsrAdjacencyMatrix::new();
-         
+
         matrix.set_entry(1, 0, 0);
         matrix.set_entry(1, 1, 2);
         matrix.set_entry(1, 2, 1);
 
         let graph = unsafe { StandardGraph::undirected_from_unchecked(matrix.clone()) };
-        
+
         assert!(graph.is_undirected());
         assert_eq!(graph.edge_count(), 3);
         assert_eq!(graph.vertex_count(), 3);
