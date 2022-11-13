@@ -8,6 +8,8 @@ license.workspace = true
 readme = "Readme.md"
 keywords = ["graph", "machine-learning", "approximation"]
 categories = ["data-structures", "science"]
+documentation = "https://docs.rs/graphrox/latest/graphrox"
+repository = "https://github.com/ted-tanner/graphrox-rs"
 
 [lib]
 name = "graphrox"
