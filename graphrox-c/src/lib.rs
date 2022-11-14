@@ -8,9 +8,9 @@
 // TODO: Don't allow unused imports
 #![allow(unused_imports)]
 
+use graphrox::error::GraphRoxError;
 use graphrox::matrix::{CsrAdjacencyMatrix, CsrSquareMatrix};
 use graphrox::{Graph, GraphRepresentation};
-use graphrox::error::GraphRoxError;
 use std::ffi;
 use std::os::raw;
 use std::ptr;
@@ -81,14 +81,16 @@ pub unsafe extern "C" fn gphrx_undirected_from(
 
     let graph = match Graph::undirected_from(*matrix) {
         Ok(graph) => graph,
-        Err(e) => return match e {
-            GraphRoxError::InvalidFormat(_) => {
-                *error = GPHRX_ERROR_INVALID_FORMAT;
-                GphrxGraph {
-                    graph_ptr: ptr::null_mut(),
+        Err(e) => {
+            return match e {
+                GraphRoxError::InvalidFormat(_) => {
+                    *error = GPHRX_ERROR_INVALID_FORMAT;
+                    GphrxGraph {
+                        graph_ptr: ptr::null_mut(),
+                    }
                 }
-            },
-        },
+            }
+        }
     };
 
     GphrxGraph {
@@ -103,13 +105,16 @@ pub unsafe extern "C" fn gphrx_undirected_from_unchecked(
     let matrix = Box::from_raw(adjacency_matrix.matrix_ptr as *mut CsrAdjacencyMatrix);
 
     GphrxGraph {
-        graph_ptr: Box::into_raw(Box::new(Graph::undirected_from_unchecked(*matrix))) as *mut raw::c_void,
+        graph_ptr: Box::into_raw(Box::new(Graph::undirected_from_unchecked(*matrix)))
+            as *mut raw::c_void,
     }
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn gphrx_to_string(graph: GphrxGraph) -> *const raw::c_char {
-    let graph = (graph.graph_ptr as *const Graph).as_ref().unwrap_unchecked();
+    let graph = (graph.graph_ptr as *const Graph)
+        .as_ref()
+        .unwrap_unchecked();
 
     ffi::CString::from_vec_unchecked((*graph).matrix_representation_string().as_bytes().to_vec())
         .into_raw()
