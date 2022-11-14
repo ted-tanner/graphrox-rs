@@ -30,7 +30,13 @@ fn main() {
 
             match top_target_dir.file_name() {
                 Some(dir_name) if dir_name == "target" => (),
-                Some(_) | None => panic!("Build script was unable to find target directory"),
+                Some(_) | None => {
+                    top_target_dir.pop();
+                    match top_target_dir.file_name() {
+                        Some(dir_name) if dir_name == "target" => (),
+                        Some(_) | None => panic!("Build script was unable to find target directory"),
+                    }
+                },
             }
 
             dir
