@@ -9,7 +9,7 @@ license.workspace = true
 [lib]
 doc = false
 name = "graphrox"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 graphrox = { path = "../graphrox-rs" }
