@@ -14,6 +14,7 @@ use graphrox::{Graph, GraphRepresentation};
 use std::ffi;
 use std::os::raw;
 use std::ptr;
+use std::slice;
 
 pub const GPHRX_ERROR_INVALID_FORMAT: i32 = 0;
 
@@ -25,6 +26,11 @@ pub struct GphrxGraph {
 #[repr(C)]
 pub struct GphrxCompressedGraph {
     pub graph_ptr: *mut raw::c_void,
+}
+
+#[repr(C)]
+pub struct GphrxCompressedGraphBuilder {
+    pub builder_ptr: *mut raw::c_void,
 }
 
 #[repr(C)]
@@ -108,6 +114,59 @@ pub unsafe extern "C" fn gphrx_undirected_from_unchecked(
         graph_ptr: Box::into_raw(Box::new(Graph::undirected_from_unchecked(*matrix)))
             as *mut raw::c_void,
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn gphrx_duplicate(graph: GphrxGraph) -> GphrxGraph {
+    let graph = (graph.graph_ptr as *const Graph)
+        .as_ref()
+        .unwrap_unchecked();
+
+    GphrxGraph {
+        graph_ptr: Box::into_raw(Box::new(graph.clone())) as *mut raw::c_void,
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn gphrx_add_vertex(
+    graph: GphrxGraph,
+    vertex_id: u64,
+    to_edges: *const u64,
+    to_edges_len: usize,
+) {
+    let graph = (graph.graph_ptr as *mut Graph)
+        .as_mut()
+        .unwrap_unchecked();
+
+    let to_edges = slice::from_raw_parts(to_edges, to_edges_len);
+
+    graph.add_vertex(vertex_id, Some(to_edges));
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn gphrx_add_edge(
+    graph: GphrxGraph,
+    from_vertex_id: u64,
+    to_vertex_id: u64,
+) {
+   let graph = (graph.graph_ptr as *mut Graph)
+        .as_mut()
+        .unwrap_unchecked();
+
+    graph.add_edge(from_vertex_id, to_vertex_id);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn gphrx_delete_edge(
+    graph: GphrxGraph,
+    from_vertex_id: u64,
+    to_vertex_id: u64,
+) {
+   let graph = (graph.graph_ptr as *mut Graph)
+        .as_mut()
+        .unwrap_unchecked();
+
+    graph.delete_edge(from_vertex_id, to_vertex_id);
 }
 
 #[no_mangle]
