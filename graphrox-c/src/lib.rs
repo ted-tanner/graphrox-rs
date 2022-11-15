@@ -8,7 +8,6 @@
 // TODO: Don't allow unused imports
 #![allow(unused_imports)]
 
-
 use graphrox::error::GraphRoxError;
 use graphrox::matrix::{CsrAdjacencyMatrix, CsrSquareMatrix};
 use graphrox::{Graph, GraphRepresentation};
@@ -147,9 +146,7 @@ pub unsafe extern "C" fn gphrx_add_vertex(
     to_edges: *const u64,
     to_edges_len: usize,
 ) {
-    let graph = (graph.graph_ptr as *mut Graph)
-        .as_mut()
-        .unwrap_unchecked();
+    let graph = (graph.graph_ptr as *mut Graph).as_mut().unwrap_unchecked();
 
     let to_edges = mem::ManuallyDrop::new(slice::from_raw_parts(to_edges, to_edges_len));
 
@@ -157,14 +154,8 @@ pub unsafe extern "C" fn gphrx_add_vertex(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn gphrx_add_edge(
-    graph: GphrxGraph,
-    from_vertex_id: u64,
-    to_vertex_id: u64,
-) {
-   let graph = (graph.graph_ptr as *mut Graph)
-        .as_mut()
-        .unwrap_unchecked();
+pub unsafe extern "C" fn gphrx_add_edge(graph: GphrxGraph, from_vertex_id: u64, to_vertex_id: u64) {
+    let graph = (graph.graph_ptr as *mut Graph).as_mut().unwrap_unchecked();
 
     graph.add_edge(from_vertex_id, to_vertex_id);
 }
@@ -175,17 +166,13 @@ pub unsafe extern "C" fn gphrx_delete_edge(
     from_vertex_id: u64,
     to_vertex_id: u64,
 ) {
-   let graph = (graph.graph_ptr as *mut Graph)
-        .as_mut()
-        .unwrap_unchecked();
+    let graph = (graph.graph_ptr as *mut Graph).as_mut().unwrap_unchecked();
 
     graph.delete_edge(from_vertex_id, to_vertex_id);
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn gphrx_is_undirected(
-    graph: GphrxGraph,
-) -> CBool {
+pub unsafe extern "C" fn gphrx_is_undirected(graph: GphrxGraph) -> CBool {
     let graph = (graph.graph_ptr as *const Graph)
         .as_ref()
         .unwrap_unchecked();
@@ -198,9 +185,7 @@ pub unsafe extern "C" fn gphrx_is_undirected(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn gphrx_vertex_count(
-    graph: GphrxGraph,
-) -> u64 {
+pub unsafe extern "C" fn gphrx_vertex_count(graph: GphrxGraph) -> u64 {
     let graph = (graph.graph_ptr as *const Graph)
         .as_ref()
         .unwrap_unchecked();
@@ -209,9 +194,7 @@ pub unsafe extern "C" fn gphrx_vertex_count(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn gphrx_edge_count(
-    graph: GphrxGraph,
-) -> u64 {
+pub unsafe extern "C" fn gphrx_edge_count(graph: GphrxGraph) -> u64 {
     let graph = (graph.graph_ptr as *const Graph)
         .as_ref()
         .unwrap_unchecked();
@@ -220,7 +203,7 @@ pub unsafe extern "C" fn gphrx_edge_count(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn gphrx_to_string(graph: GphrxGraph) -> *const ffi::c_char {
+pub unsafe extern "C" fn gphrx_matrix_string(graph: GphrxGraph) -> *const ffi::c_char {
     let graph = (graph.graph_ptr as *const Graph)
         .as_ref()
         .unwrap_unchecked();
@@ -233,12 +216,12 @@ pub unsafe extern "C" fn gphrx_to_string(graph: GphrxGraph) -> *const ffi::c_cha
 pub unsafe extern "C" fn gphrx_does_edge_exist(
     graph: GphrxGraph,
     from_vertex_id: u64,
-    to_vertex_id: u64,    
+    to_vertex_id: u64,
 ) -> CBool {
     let graph = (graph.graph_ptr as *const Graph)
         .as_ref()
         .unwrap_unchecked();
-    
+
     if graph.does_edge_exist(from_vertex_id, to_vertex_id) {
         C_TRUE
     } else {
@@ -247,7 +230,10 @@ pub unsafe extern "C" fn gphrx_does_edge_exist(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn gphrx_to_bytes(graph: GphrxGraph, buffer_size: *mut usize) -> *const ffi::c_uchar {
+pub unsafe extern "C" fn gphrx_to_bytes(
+    graph: GphrxGraph,
+    buffer_size: *mut usize,
+) -> *const ffi::c_uchar {
     let graph = (graph.graph_ptr as *const Graph)
         .as_ref()
         .unwrap_unchecked();
@@ -256,4 +242,27 @@ pub unsafe extern "C" fn gphrx_to_bytes(graph: GphrxGraph, buffer_size: *mut usi
     *buffer_size = buffer.len();
 
     buffer.as_ptr()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn gphrx_from_bytes(
+    buffer: *const u8,
+    buffer_size: usize,
+    error: *mut u8,
+) -> GphrxGraph {
+    let buffer = mem::ManuallyDrop::new(slice::from_raw_parts(buffer, buffer_size));
+
+    let graph = match Graph::try_from(*buffer) {
+        Ok(b) => b,
+        Err(_) => {
+            *error = GPHRX_ERROR_INVALID_FORMAT;
+            return GphrxGraph {
+                graph_ptr: ptr::null_mut(),
+            };
+        }
+    };
+
+    GphrxGraph {
+        graph_ptr: Box::into_raw(Box::new(graph)) as *mut ffi::c_void,
+    }
 }

@@ -36,9 +36,10 @@ GphrxGraph gphrx_new_directed();
 GphrxGraph gphrx_directed_from(GphrxCsrAdjacencyMatrix adjacency_matrix);
 GphrxGraph gphrx_undirected_from(GphrxCsrAdjacencyMatrix adjacency_matrix, uint8_t *error);
 GphrxGraph gphrx_undirected_from_unchecked(GphrxCsrAdjacencyMatrix adjacency_matrix);
+GphrxGraph gphrx_from_bytes(const unsigned char *buffer, size_t buffer_size, uint8_t *error);
 
 GphrxGraph gphrx_duplicate(const GphrxGraph graph);
-const char *gphrx_to_string(const GphrxGraph graph);
+const char *gphrx_matrix_string(const GphrxGraph graph);
 const unsigned char *gphrx_to_bytes(const GphrxGraph graph, size_t *buffer_size);
 
 bool gphrx_is_undirected(const GphrxGraph graph);
