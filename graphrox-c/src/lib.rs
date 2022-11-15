@@ -31,6 +31,12 @@ pub struct GphrxGraph {
 }
 
 #[repr(C)]
+pub struct GphrxGraphEdge {
+    pub col: u64,
+    pub row: u64,
+}
+
+#[repr(C)]
 pub struct GphrxCompressedGraph {
     pub graph_ptr: *mut ffi::c_void,
 }
@@ -59,6 +65,11 @@ pub unsafe extern "C" fn free_gphrx_compressed_graph(graph: GphrxCompressedGraph
 pub unsafe extern "C" fn free_gphrx_matrix(matrix: GphrxCsrSquareMatrix) {
     // This module only exposes an average pool matrix, which is of type CsrSquareMatrix<f64>
     drop(Box::from_raw(matrix.matrix_ptr as *mut CsrSquareMatrix<f64>));
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn free_gphrx_edge_list(list: *const GphrxGraphEdge, length: usize) {
+    drop(slice::from_raw_parts(list, length));
 }
 
 #[no_mangle]
@@ -273,6 +284,34 @@ pub unsafe extern "C" fn gphrx_compress(
     }
 }
 
-// TODO: CsrSquareMatrix<f64>, non-mutating methods only
+#[no_mangle]
+pub unsafe extern "C" fn gphrx_get_edge_list(
+    graph: GphrxGraph,
+    length: *mut usize,
+) -> *const GphrxGraphEdge {
+    let graph = (graph.graph_ptr as *const Graph)
+        .as_ref()
+        .unwrap_unchecked();
+
+    let mut buffer = mem::MaybeUninit::new(Vec::with_capacity(graph.edge_count() as usize));
+    *length = graph.edge_count() as usize;
+
+    let buffer_ptr = unsafe {
+        (*buffer.as_mut_ptr()).set_len((*buffer.as_mut_ptr()).capacity());
+        (*buffer.as_mut_ptr()).as_mut_ptr() as *mut GphrxGraphEdge
+    };
+
+    let mut pos = 0;
+
+    for (col, row) in graph {
+        let edge = GphrxGraphEdge { col, row };
+        ptr::write(buffer_ptr.add(pos), edge);
+        pos += 1;
+    }
+
+    buffer_ptr as *const GphrxGraphEdge
+}
+
+// TODO: CsrSquareMatrix<f64>, non-mutating methods only (including iterator)
 // TODO: CompressedGraph
 // TODO: CompressedGraphBuilder
