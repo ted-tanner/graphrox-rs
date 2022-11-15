@@ -10,7 +10,7 @@
 
 use graphrox::error::GraphRoxError;
 use graphrox::matrix::{CsrAdjacencyMatrix, CsrSquareMatrix};
-use graphrox::{Graph, GraphRepresentation};
+use graphrox::{CompressedGraph, Graph, GraphRepresentation};
 
 use std::ffi;
 use std::mem;
@@ -41,11 +41,6 @@ pub struct GphrxCompressedGraphBuilder {
 }
 
 #[repr(C)]
-pub struct GphrxCsrAdjacencyMatrix {
-    pub matrix_ptr: *mut ffi::c_void,
-}
-
-#[repr(C)]
 pub struct GphrxCsrSquareMatrix {
     pub matrix_ptr: *mut ffi::c_void,
 }
@@ -53,6 +48,17 @@ pub struct GphrxCsrSquareMatrix {
 #[no_mangle]
 pub unsafe extern "C" fn free_gphrx_graph(graph: GphrxGraph) {
     drop(Box::from_raw(graph.graph_ptr as *mut Graph));
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn free_gphrx_compressed_graph(graph: GphrxCompressedGraph) {
+    drop(Box::from_raw(graph.graph_ptr as *mut CompressedGraph));
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn free_gphrx_matrix(matrix: GphrxCsrSquareMatrix) {
+    // This module only exposes an average pool matrix, which is of type CsrSquareMatrix<f64>
+    drop(Box::from_raw(matrix.matrix_ptr as *mut CsrSquareMatrix<f64>));
 }
 
 #[no_mangle]
@@ -76,55 +82,6 @@ pub extern "C" fn gphrx_new_undirected() -> GphrxGraph {
 pub extern "C" fn gphrx_new_directed() -> GphrxGraph {
     GphrxGraph {
         graph_ptr: Box::into_raw(Box::new(Graph::new_directed())) as *mut ffi::c_void,
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn gphrx_directed_from(
-    adjacency_matrix: GphrxCsrAdjacencyMatrix,
-) -> GphrxGraph {
-    let matrix = Box::from_raw(adjacency_matrix.matrix_ptr as *mut CsrAdjacencyMatrix);
-
-    GphrxGraph {
-        graph_ptr: Box::into_raw(Box::new(Graph::directed_from(*matrix))) as *mut ffi::c_void,
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn gphrx_undirected_from(
-    adjacency_matrix: GphrxCsrAdjacencyMatrix,
-    error: *mut u8,
-) -> GphrxGraph {
-    let matrix = Box::from_raw(adjacency_matrix.matrix_ptr as *mut CsrAdjacencyMatrix);
-
-    let graph = match Graph::undirected_from(*matrix) {
-        Ok(graph) => graph,
-        Err(e) => {
-            return match e {
-                GraphRoxError::InvalidFormat(_) => {
-                    *error = GPHRX_ERROR_INVALID_FORMAT;
-                    GphrxGraph {
-                        graph_ptr: ptr::null_mut(),
-                    }
-                }
-            }
-        }
-    };
-
-    GphrxGraph {
-        graph_ptr: Box::into_raw(Box::new(graph)) as *mut ffi::c_void,
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn gphrx_undirected_from_unchecked(
-    adjacency_matrix: GphrxCsrAdjacencyMatrix,
-) -> GphrxGraph {
-    let matrix = Box::from_raw(adjacency_matrix.matrix_ptr as *mut CsrAdjacencyMatrix);
-
-    GphrxGraph {
-        graph_ptr: Box::into_raw(Box::new(Graph::undirected_from_unchecked(*matrix)))
-            as *mut ffi::c_void,
     }
 }
 
@@ -266,3 +223,56 @@ pub unsafe extern "C" fn gphrx_from_bytes(
         graph_ptr: Box::into_raw(Box::new(graph)) as *mut ffi::c_void,
     }
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn gphrx_find_avg_pool_matrix(
+    graph: GphrxGraph,
+    block_dimension: u64,
+) -> GphrxCsrSquareMatrix {
+    let graph = (graph.graph_ptr as *const Graph)
+        .as_ref()
+        .unwrap_unchecked();
+
+    let matrix = graph.find_avg_pool_matrix(block_dimension);
+
+    GphrxCsrSquareMatrix {
+        matrix_ptr: Box::into_raw(Box::new(matrix)) as *mut ffi::c_void,
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn gphrx_approximate(
+    graph: GphrxGraph,
+    block_dimension: u64,
+    threshold: f64,
+) -> GphrxGraph {
+    let graph = (graph.graph_ptr as *const Graph)
+        .as_ref()
+        .unwrap_unchecked();
+
+    let approx_graph = graph.approximate(block_dimension, threshold);
+
+    GphrxGraph {
+        graph_ptr: Box::into_raw(Box::new(approx_graph)) as *mut ffi::c_void,
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn gphrx_compress(
+    graph: GphrxGraph,
+    threshold: f64,
+) -> GphrxCompressedGraph {
+    let graph = (graph.graph_ptr as *const Graph)
+        .as_ref()
+        .unwrap_unchecked();
+
+    let compressed_graph = graph.compress(threshold);
+
+    GphrxCompressedGraph {
+        graph_ptr: Box::into_raw(Box::new(compressed_graph)) as *mut ffi::c_void,
+    }
+}
+
+// TODO: CsrSquareMatrix<f64>, non-mutating methods only
+// TODO: CompressedGraph
+// TODO: CompressedGraphBuilder
