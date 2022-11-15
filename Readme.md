@@ -3,6 +3,9 @@
 GraphRox is a network graph library for efficiently generating approximations of graphs.
 GraphRox additionally provides a high-fidelity, lossy graph compression algorithm.
 
+See [https://docs.rs/graphrox/latest/graphrox/](https://docs.rs/graphrox/latest/graphrox/)
+for documentation on using the library in Rust.
+
 ## Using the Library
 
 To use the library in Rust, add it to `[dependencies]` in `Cargo.toml`.

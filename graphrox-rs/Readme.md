@@ -240,14 +240,24 @@ a websocket.
 
 ```rust
 use graphrox::{CompressedGraph, Graph, GraphRepresentation};
+use std::fs;
 
 let mut graph = Graph::new_undirected();
 
 graph.add_vertex(0, Some(&[1, 2, 6]));
 graph.add_vertex(3, Some(&[1, 2]));
 
+// Convert the graph to bytes
 let graph_bytes = graph.to_bytes();
-let graph_from_bytes = Graph::try_from(graph_bytes.as_slice()).unwrap();
+
+// Save the bytes to a file
+fs::write("my-graph.gphrx", graph_bytes).unwrap();
+
+// Read the bytes from a file (then delete the file)
+let graph_file = fs::read("my-graph.gphrx").unwrap();
+fs::remove_file("my-graph.gphrx").unwrap();
+
+let graph_from_bytes = Graph::try_from(graph_file.as_slice()).unwrap();
 
 assert_eq!(graph.edge_count(), graph_from_bytes.edge_count());
 
@@ -257,10 +267,14 @@ for (from_vertex, to_vertex) in &graph_from_bytes {
 
 // Compressed graphs can be converted to bytes as well
 let compressed_graph = graph.compress(0.05);
-let compressed_graph_bytes = compressed_graph.to_bytes();
+fs::write("compressed-graph.cgphrx", compressed_graph.to_bytes()).unwrap();
+
+// Read the compressed_graph from a file (then delete the file)
+let compressed_graph_file = fs::read("compressed-graph.cgphrx").unwrap();
+fs::remove_file("compressed-graph.cgphrx").unwrap();
 
 let compressed_graph_from_bytes =
-    CompressedGraph::try_from(compressed_graph_bytes.as_slice()).unwrap();
+    CompressedGraph::try_from(compressed_graph_file.as_slice()).unwrap();
 
 assert_eq!(compressed_graph_from_bytes.edge_count(), compressed_graph.edge_count());
 ```
