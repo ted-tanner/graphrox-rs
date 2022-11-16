@@ -3,7 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define GPHRX_ERROR_INVALID_FORMAT 0
+#define GPHRX_ERROR_INVALID_FORMAT 1
 
 typedef struct {
     const void *graph_ptr;
@@ -73,6 +73,8 @@ void gphrx_delete_edge(GphrxGraph graph, uint64_t from_vertex_id, uint64_t to_ve
 // CompressedGraph
 void free_gphrx_compressed_graph(const GphrxCompressedGraph graph);
 
+GphrxCompressedGraph gphrx_compressed_graph_duplicate(const GphrxCompressedGraph graph);
+
 double gphrx_compressed_graph_threshold(const GphrxCompressedGraph graph);
 int8_t gphrx_compressed_graph_is_undirected(const GphrxCompressedGraph graph);
 uint64_t gphrx_compressed_graph_vertex_count(const GphrxCompressedGraph graph);
@@ -84,7 +86,7 @@ int8_t gphrx_compressed_graph_does_edge_exist(const GphrxCompressedGraph graph,
 uint64_t gphrx_get_compressed_matrix_entry(const GphrxCompressedGraph graph,
                                            uint64_t col,
                                            uint64_t row);
-const char *gphrx_compressed_graph_matrix_representation_string(const GphrxCompressedGraph);
+const char *gphrx_compressed_graph_matrix_string(const GphrxCompressedGraph);
 const uint8_t *gphrx_compressed_graph_to_bytes(const GphrxCompressedGraph,
                                                size_t *buffer_size);
 GphrxCompressedGraph gphrx_compressed_graph_from_bytes(const uint8_t *buffer,
@@ -96,8 +98,11 @@ GphrxGraph gphrx_decompress(const GphrxCompressedGraph graph);
 void free_gphrx_matrix(const GphrxCsrSquareMatrix matrix);
 void free_gphrx_matrix_entry_list(const GphrxMatrixEntry *list, size_t length);
 
+GphrxCsrSquareMatrix gphrx_matrix_duplicate(const GphrxCsrSquareMatrix matrix);
+
 uint64_t gphrx_matrix_dimension(const GphrxCsrSquareMatrix matrix);
 uint64_t gphrx_matrix_entry_count(const GphrxCsrSquareMatrix matrix);
+double gphrx_matrix_get_entry(const GphrxCsrSquareMatrix matrix, uint64_t col, uint64_t row);
 
 const char *gphrx_matrix_to_string(const GphrxCsrSquareMatrix matrix);
 const char *gphrx_matrix_to_string_with_precision(const GphrxCsrSquareMatrix matrix,

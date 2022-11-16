@@ -964,6 +964,12 @@ mod tests {
         graph.add_edge(2, 2);
 
         let bytes = graph.to_bytes();
+        assert_eq!(
+            bytes.len(),
+            mem::size_of::<GraphBytesHeader>()
+                + mem::size_of::<u64>() * 2 * graph.edge_count() as usize
+        );
+
         let graph_from_bytes = StandardGraph::try_from(bytes.as_slice()).unwrap();
 
         assert_eq!(graph.is_undirected, graph_from_bytes.is_undirected);

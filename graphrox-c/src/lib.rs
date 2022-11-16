@@ -11,15 +11,14 @@ use std::mem;
 use std::ptr;
 use std::slice;
 
-pub const GPHRX_ERROR_INVALID_FORMAT: u8 = 0;
-pub const SIZE_OF_GRAPH_BYTES_HEADER: usize = 26;
-pub const GRAPH_BYTES_HEADER_ENTRY_COUNT_OFFSET: usize = 16;
+pub const GPHRX_ERROR_INVALID_FORMAT: u8 = 1;
 
 type CBool = i8;
 pub const C_TRUE: CBool = 1;
 pub const C_FALSE: CBool = 0;
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct GphrxGraph {
     pub graph_ptr: *mut ffi::c_void,
 }
@@ -38,16 +37,19 @@ pub struct GphrxMatrixEntry {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct GphrxCompressedGraph {
     pub graph_ptr: *mut ffi::c_void,
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct GphrxCompressedGraphBuilder {
     pub builder_ptr: *mut ffi::c_void,
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct GphrxCsrSquareMatrix {
     pub matrix_ptr: *mut ffi::c_void,
 }
@@ -63,7 +65,7 @@ pub unsafe extern "C" fn free_gphrx_bytes_buffer(buffer: *mut u8, buffer_size: u
     if buffer_size != 0 {
         let slice = slice::from_raw_parts_mut(buffer, buffer_size);
         ptr::drop_in_place(slice);
-        
+
         let layout = alloc::Layout::array::<u8>(buffer_size).unwrap_unchecked();
         alloc::dealloc(buffer, layout);
     }
@@ -80,7 +82,7 @@ pub unsafe extern "C" fn free_gphrx_edge_list(list: *mut GphrxGraphEdge, length:
     if length != 0 {
         let slice = slice::from_raw_parts_mut(list, length);
         ptr::drop_in_place(slice);
-        
+
         let layout = alloc::Layout::array::<GphrxGraphEdge>(length).unwrap_unchecked();
         alloc::dealloc(list as *mut u8, layout);
     }
@@ -135,7 +137,7 @@ pub unsafe extern "C" fn gphrx_duplicate(graph: GphrxGraph) -> GphrxGraph {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn gphrx_matrix_string(graph: GphrxGraph) -> *const ffi::c_char {
+pub unsafe extern "C" fn gphrx_matrix_string(graph: GphrxGraph) -> *mut ffi::c_char {
     let graph = (graph.graph_ptr as *const Graph)
         .as_ref()
         .unwrap_unchecked();
@@ -145,7 +147,7 @@ pub unsafe extern "C" fn gphrx_matrix_string(graph: GphrxGraph) -> *const ffi::c
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn gphrx_to_bytes(graph: GphrxGraph, buffer_size: *mut usize) -> *const u8 {
+pub unsafe extern "C" fn gphrx_to_bytes(graph: GphrxGraph, buffer_size: *mut usize) -> *mut u8 {
     let graph = (graph.graph_ptr as *const Graph)
         .as_ref()
         .unwrap_unchecked();
@@ -153,7 +155,7 @@ pub unsafe extern "C" fn gphrx_to_bytes(graph: GphrxGraph, buffer_size: *mut usi
     let buffer = mem::ManuallyDrop::new(graph.to_bytes());
     *buffer_size = buffer.len();
 
-    buffer.as_ptr()
+    buffer.as_ptr() as *mut u8
 }
 
 #[no_mangle]
@@ -254,7 +256,7 @@ pub unsafe extern "C" fn gphrx_compress(graph: GphrxGraph, threshold: f64) -> Gp
 pub unsafe extern "C" fn gphrx_get_edge_list(
     graph: GphrxGraph,
     length: *mut usize,
-) -> *const GphrxGraphEdge {
+) -> *mut GphrxGraphEdge {
     let graph = (graph.graph_ptr as *const Graph)
         .as_ref()
         .unwrap_unchecked();
@@ -267,7 +269,6 @@ pub unsafe extern "C" fn gphrx_get_edge_list(
         (*buffer.as_mut_ptr()).as_mut_ptr() as *mut GphrxGraphEdge
     };
 
-
     let mut pos = 0;
 
     // Using pos as an explicit loop counter is more clear than what Clippy suggests
@@ -278,7 +279,7 @@ pub unsafe extern "C" fn gphrx_get_edge_list(
         pos += 1;
     }
 
-    buffer_ptr as *const GphrxGraphEdge
+    buffer_ptr as *mut GphrxGraphEdge
 }
 
 #[no_mangle]
@@ -317,6 +318,19 @@ pub unsafe extern "C" fn gphrx_delete_edge(
 #[no_mangle]
 pub unsafe extern "C" fn free_gphrx_compressed_graph(graph: GphrxCompressedGraph) {
     drop(Box::from_raw(graph.graph_ptr as *mut CompressedGraph));
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn gphrx_compressed_graph_duplicate(
+    graph: GphrxCompressedGraph,
+) -> GphrxCompressedGraph {
+    let graph = (graph.graph_ptr as *const CompressedGraph)
+        .as_ref()
+        .unwrap_unchecked();
+
+    GphrxCompressedGraph {
+        graph_ptr: Box::into_raw(Box::new(graph.clone())) as *mut ffi::c_void,
+    }
 }
 
 #[no_mangle]
@@ -394,7 +408,7 @@ pub unsafe extern "C" fn gphrx_get_compressed_matrix_entry(
 #[no_mangle]
 pub unsafe extern "C" fn gphrx_compressed_graph_matrix_string(
     graph: GphrxCompressedGraph,
-) -> *const ffi::c_char {
+) -> *mut ffi::c_char {
     let graph = (graph.graph_ptr as *const CompressedGraph)
         .as_ref()
         .unwrap_unchecked();
@@ -407,7 +421,7 @@ pub unsafe extern "C" fn gphrx_compressed_graph_matrix_string(
 pub unsafe extern "C" fn gphrx_compressed_graph_to_bytes(
     graph: GphrxCompressedGraph,
     buffer_size: *mut usize,
-) -> *const u8 {
+) -> *mut u8 {
     let graph = (graph.graph_ptr as *const CompressedGraph)
         .as_ref()
         .unwrap_unchecked();
@@ -415,7 +429,7 @@ pub unsafe extern "C" fn gphrx_compressed_graph_to_bytes(
     let buffer = mem::ManuallyDrop::new(graph.to_bytes());
     *buffer_size = buffer.len();
 
-    buffer.as_ptr()
+    buffer.as_ptr() as *mut u8
 }
 
 #[no_mangle]
@@ -464,14 +478,24 @@ pub unsafe extern "C" fn free_gphrx_matrix(matrix: GphrxCsrSquareMatrix) {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn free_gphrx_matrix_entry_list(
-    list: *mut GphrxMatrixEntry,
-    length: usize,
-) {
+pub unsafe extern "C" fn gphrx_matrix_duplicate(
+    matrix: GphrxCsrSquareMatrix,
+) -> GphrxCsrSquareMatrix {
+    let matrix = (matrix.matrix_ptr as *const CsrSquareMatrix<f64>)
+        .as_ref()
+        .unwrap_unchecked();
+
+    GphrxCsrSquareMatrix {
+        matrix_ptr: Box::into_raw(Box::new(matrix.clone())) as *mut ffi::c_void,
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn free_gphrx_matrix_entry_list(list: *mut GphrxMatrixEntry, length: usize) {
     if length != 0 {
         let slice = slice::from_raw_parts_mut(list, length);
         ptr::drop_in_place(slice);
-        
+
         let layout = alloc::Layout::array::<GphrxMatrixEntry>(length).unwrap_unchecked();
         alloc::dealloc(list as *mut u8, layout);
     }
@@ -496,9 +520,20 @@ pub unsafe extern "C" fn gphrx_matrix_entry_count(matrix: GphrxCsrSquareMatrix) 
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn gphrx_matrix_to_string(
+pub unsafe extern "C" fn gphrx_matrix_get_entry(
     matrix: GphrxCsrSquareMatrix,
-) -> *const ffi::c_char {
+    col: u64,
+    row: u64,
+) -> f64 {
+    let matrix = (matrix.matrix_ptr as *const CsrSquareMatrix<f64>)
+        .as_ref()
+        .unwrap_unchecked();
+
+    matrix.get_entry(col, row)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn gphrx_matrix_to_string(matrix: GphrxCsrSquareMatrix) -> *mut ffi::c_char {
     let matrix = (matrix.matrix_ptr as *const CsrSquareMatrix<f64>)
         .as_ref()
         .unwrap_unchecked();
@@ -510,7 +545,7 @@ pub unsafe extern "C" fn gphrx_matrix_to_string(
 pub unsafe extern "C" fn gphrx_matrix_to_string_with_precision(
     matrix: GphrxCsrSquareMatrix,
     decimal_digits: usize,
-) -> *const ffi::c_char {
+) -> *mut ffi::c_char {
     let matrix = (matrix.matrix_ptr as *const CsrSquareMatrix<f64>)
         .as_ref()
         .unwrap_unchecked();
@@ -528,7 +563,7 @@ pub unsafe extern "C" fn gphrx_matrix_to_string_with_precision(
 pub unsafe extern "C" fn gphrx_matrix_get_entry_list(
     matrix: GphrxCsrSquareMatrix,
     length: *mut usize,
-) -> *const GphrxMatrixEntry {
+) -> *mut GphrxMatrixEntry {
     let matrix = (matrix.matrix_ptr as *const CsrSquareMatrix<f64>)
         .as_ref()
         .unwrap_unchecked();
@@ -551,112 +586,559 @@ pub unsafe extern "C" fn gphrx_matrix_get_entry_list(
         pos += 1;
     }
 
-    buffer_ptr as *const GphrxMatrixEntry
+    buffer_ptr as *mut GphrxMatrixEntry
 }
 
 #[cfg(test)]
 mod tests {
-    // use super::*;
+    use super::*;
 
-    // #[test]
-    // fn test_free_gphrx_string_buffer() {
-    //     todo!();
-    // }
+    #[test]
+    fn test_free_gphrx_string_buffer() {
+        let graph = gphrx_new_undirected();
 
-    // #[test]
-    // fn test_free_gphrx_bytes_buffer() {
-    //     todo!();
-    // }
+        unsafe {
+            gphrx_add_edge(graph, 3, 9);
+            gphrx_add_edge(graph, 200, 30);
 
-    // #[test]
-    // fn test_free_gphrx_graph() {
-    //     todo!();
-    // }
+            let string = gphrx_matrix_string(graph);
 
-    // #[test]
-    // fn test_free_gphrx_edge_list() {
-    //     todo!();
-    // }
+            // Just make sure this doesn't seg fault
+            free_gphrx_string_buffer(string as *mut ffi::c_char);
+            free_gphrx_graph(graph);
+        }
+    }
 
-    // #[test]
-    // fn test_gphrx_new_undirected() {
-    //     todo!();
-    // }
+    #[test]
+    fn test_free_gphrx_bytes_buffer() {
+        let graph = gphrx_new_undirected();
 
-    // #[test]
-    // fn test_gphrx_new_directed() {
-    //     todo!();
-    // }
+        unsafe {
+            gphrx_add_edge(graph, 3, 9);
+            gphrx_add_edge(graph, 200, 30);
 
-    // #[test]
-    // fn test_gphrx_from_bytes() {
-    //     todo!();
-    // }
+            let mut size = 0;
+            let bytes = gphrx_to_bytes(graph, &mut size as *mut usize);
 
-    // #[test]
-    // fn test_gphrx_duplicate() {
-    //     todo!();
-    // }
+            assert_ne!(size, 0);
 
-    // #[test]
-    // fn test_gphrx_matrix_string() {
-    //     todo!();
-    // }
+            // Just make sure this doesn't seg fault
+            free_gphrx_bytes_buffer(bytes as *mut u8, size);
+            free_gphrx_graph(graph);
+        }
+    }
 
-    // #[test]
-    // fn test_gphrx_to_bytes() {
-    //     todo!();
-    // }
+    #[test]
+    fn test_free_gphrx_graph() {
+        let graph = gphrx_new_undirected();
 
-    // #[test]
-    // fn test_gphrx_is_undirected() {
-    //     todo!();
-    // }
+        unsafe {
+            gphrx_add_edge(graph, 3, 9);
+            gphrx_add_edge(graph, 200, 30);
+            gphrx_add_edge(graph, 15, 39);
+            gphrx_add_edge(graph, 100000, 200020);
+            gphrx_add_edge(graph, 200, 31);
+            gphrx_add_edge(graph, 588, 10399);
 
-    // #[test]
-    // fn test_gphrx_vertex_count() {
-    //     todo!();
-    // }
+            // Just make sure this doesn't seg fault
+            free_gphrx_graph(graph);
+            let graph = gphrx_new_undirected();
+            free_gphrx_graph(graph);
+        }
+    }
 
-    // #[test]
-    // fn test_gphrx_edge_count() {
-    //     todo!();
-    // }
+    #[test]
+    fn test_free_gphrx_edge_list() {
+        let graph = gphrx_new_directed();
 
-    // #[test]
-    // fn test_gphrx_does_edge_exist() {
-    //     todo!();
-    // }
+        let edges = vec![
+            (3, 9),
+            (200, 30),
+            (15, 39),
+            (10, 20),
+            (200, 31),
+            (588, 1039),
+        ];
+        unsafe {
+            for (from, to) in &edges {
+                gphrx_add_edge(graph, *from, *to);
+            }
 
-    // #[test]
-    // fn test_gphrx_find_avg_pool_matrix() {
-    //     todo!();
-    // }
+            let mut size: usize = 0;
+            let edge_list = gphrx_get_edge_list(graph, &mut size as *mut usize);
 
-    // #[test]
-    // fn test_gphrx_approximate() {
-    //     todo!();
-    // }
+            // Just make sure this doesn't seg fault
+            free_gphrx_edge_list(edge_list, size);
+            free_gphrx_graph(graph);
+        }
+    }
 
-    // #[test]
-    // fn test_gphrx_compress() {
-    //     todo!();
-    // }
+    #[test]
+    fn test_gphrx_new_undirected() {
+        let graph = gphrx_new_undirected();
 
-    // #[test]
-    // fn test_gphrx_get_edge_list() {
-    //     todo!();
-    // }
+        unsafe {
+            assert_eq!(gphrx_is_undirected(graph), C_TRUE);
+            assert_eq!(gphrx_edge_count(graph), 0);
+            assert_eq!(gphrx_vertex_count(graph), 0);
 
-    // #[test]
-    // fn test_gphrx_add_vertex() {
-    //     todo!();
-    // }
+            free_gphrx_graph(graph);
+        }
+    }
 
-    // #[test]
-    // fn test_gphrx_add_edge() {
-    //     todo!();
-    // }
+    #[test]
+    fn test_gphrx_new_directed() {
+        let graph = gphrx_new_directed();
+
+        unsafe {
+            assert_eq!(gphrx_is_undirected(graph), C_FALSE);
+            assert_eq!(gphrx_edge_count(graph), 0);
+            assert_eq!(gphrx_vertex_count(graph), 0);
+
+            free_gphrx_graph(graph);
+        }
+    }
+
+    #[test]
+    fn test_gphrx_to_from_bytes() {
+        const SIZE_OF_GRAPH_BYTES_HEADER: usize = 26;
+
+        let graph = gphrx_new_undirected();
+
+        unsafe {
+            gphrx_add_edge(graph, 3, 9);
+            gphrx_add_edge(graph, 200, 30);
+
+            let mut size = 0;
+            let bytes = gphrx_to_bytes(graph, &mut size as *mut usize);
+
+            assert_eq!(
+                size,
+                SIZE_OF_GRAPH_BYTES_HEADER
+                    + mem::size_of::<u64>() * 2 * gphrx_edge_count(graph) as usize
+            );
+
+            let mut error = 0u8;
+            let graph_from_bytes = gphrx_from_bytes(bytes, size, &mut error as *mut u8);
+
+            assert_eq!(error, 0);
+
+            assert_eq!(
+                gphrx_is_undirected(graph_from_bytes),
+                gphrx_is_undirected(graph)
+            );
+            assert_eq!(gphrx_is_undirected(graph_from_bytes), C_TRUE);
+            assert_eq!(gphrx_edge_count(graph_from_bytes), gphrx_edge_count(graph));
+            assert_eq!(gphrx_edge_count(graph_from_bytes), 4);
+            assert_eq!(
+                gphrx_vertex_count(graph_from_bytes),
+                gphrx_vertex_count(graph)
+            );
+            assert_eq!(gphrx_vertex_count(graph_from_bytes), 201);
+
+            assert_eq!(gphrx_does_edge_exist(graph_from_bytes, 3, 9), C_TRUE);
+            assert_eq!(gphrx_does_edge_exist(graph_from_bytes, 9, 3), C_TRUE);
+            assert_eq!(gphrx_does_edge_exist(graph_from_bytes, 200, 30), C_TRUE);
+            assert_eq!(gphrx_does_edge_exist(graph_from_bytes, 30, 200), C_TRUE);
+
+            free_gphrx_bytes_buffer(bytes as *mut u8, size);
+            free_gphrx_graph(graph);
+            free_gphrx_graph(graph_from_bytes);
+        }
+    }
+
+    #[test]
+    fn test_gphrx_duplicate() {
+        let graph = gphrx_new_undirected();
+
+        unsafe {
+            gphrx_add_edge(graph, 3, 9);
+            gphrx_add_edge(graph, 200, 30);
+
+            let duplicate_graph = gphrx_duplicate(graph);
+
+            assert_eq!(
+                gphrx_is_undirected(duplicate_graph),
+                gphrx_is_undirected(graph)
+            );
+            assert_eq!(gphrx_edge_count(duplicate_graph), gphrx_edge_count(graph));
+            assert_eq!(
+                gphrx_vertex_count(duplicate_graph),
+                gphrx_vertex_count(graph)
+            );
+
+            assert_eq!(gphrx_does_edge_exist(duplicate_graph, 3, 9), C_TRUE);
+            assert_eq!(gphrx_does_edge_exist(duplicate_graph, 9, 3), C_TRUE);
+            assert_eq!(gphrx_does_edge_exist(duplicate_graph, 200, 30), C_TRUE);
+            assert_eq!(gphrx_does_edge_exist(duplicate_graph, 30, 200), C_TRUE);
+
+            free_gphrx_graph(graph);
+            free_gphrx_graph(duplicate_graph);
+        }
+    }
+
+    #[test]
+    fn test_gphrx_matrix_string() {
+        let graph = gphrx_new_directed();
+
+        unsafe {
+            gphrx_add_edge(graph, 1, 2);
+            gphrx_add_edge(graph, 1, 0);
+            gphrx_add_edge(graph, 0, 2);
+            gphrx_add_edge(graph, 2, 2);
+
+            let graph_string = ffi::CString::from_raw(gphrx_matrix_string(graph));
+            let expected = "[ 0, 1, 0 ]\r\n[ 0, 0, 0 ]\r\n[ 1, 1, 1 ]";
+
+            assert_eq!(expected, graph_string.as_c_str().to_str().unwrap());
+
+            gphrx_add_vertex(graph, 3, ptr::null(), 0);
+
+            let graph_string = ffi::CString::from_raw(gphrx_matrix_string(graph));
+            let expected = "[ 0, 1, 0, 0 ]\r\n[ 0, 0, 0, 0 ]\r\n[ 1, 1, 1, 0 ]\r\n[ 0, 0, 0, 0 ]";
+
+            assert_eq!(expected, graph_string.as_c_str().to_str().unwrap());
+
+            free_gphrx_graph(graph);
+        }
+    }
+
+    #[test]
+    fn test_gphrx_is_undirected() {
+        let graph = gphrx_new_undirected();
+        unsafe {
+            assert_eq!(gphrx_is_undirected(graph), C_TRUE);
+            free_gphrx_graph(graph);
+        }
+
+        let graph = gphrx_new_directed();
+        unsafe {
+            assert_eq!(gphrx_is_undirected(graph), C_FALSE);
+            free_gphrx_graph(graph);
+        }
+    }
+
+    #[test]
+    fn test_gphrx_vertex_count() {
+        let graph = gphrx_new_undirected();
+
+        unsafe {
+            assert_eq!(gphrx_vertex_count(graph), 0);
+
+            gphrx_add_edge(graph, 1, 4);
+            assert_eq!(gphrx_vertex_count(graph), 5);
+
+            gphrx_add_vertex(graph, 101, ptr::null(), 0);
+            assert_eq!(gphrx_vertex_count(graph), 102);
+
+            free_gphrx_graph(graph);
+        }
+    }
+
+    #[test]
+    fn test_gphrx_edge_count() {
+        let graph = gphrx_new_undirected();
+
+        unsafe {
+            assert_eq!(gphrx_edge_count(graph), 0);
+
+            gphrx_add_edge(graph, 1, 4);
+            assert_eq!(gphrx_edge_count(graph), 2);
+
+            gphrx_add_edge(graph, 1, 4);
+            assert_eq!(gphrx_edge_count(graph), 2);
+
+            gphrx_add_edge(graph, 1, 5);
+            assert_eq!(gphrx_edge_count(graph), 4);
+
+            gphrx_add_edge(graph, 5, 5);
+            assert_eq!(gphrx_edge_count(graph), 5);
+
+            gphrx_add_vertex(graph, 101, ptr::null(), 0);
+            assert_eq!(gphrx_edge_count(graph), 5);
+
+            free_gphrx_graph(graph);
+        }
+
+        let graph = gphrx_new_directed();
+
+        unsafe {
+            assert_eq!(gphrx_edge_count(graph), 0);
+
+            gphrx_add_edge(graph, 1, 4);
+            assert_eq!(gphrx_edge_count(graph), 1);
+
+            gphrx_add_edge(graph, 1, 4);
+            assert_eq!(gphrx_edge_count(graph), 1);
+
+            gphrx_add_edge(graph, 1, 5);
+            assert_eq!(gphrx_edge_count(graph), 2);
+
+            gphrx_add_edge(graph, 5, 5);
+            assert_eq!(gphrx_edge_count(graph), 3);
+
+            gphrx_add_vertex(graph, 101, ptr::null(), 0);
+            assert_eq!(gphrx_edge_count(graph), 3);
+
+            free_gphrx_graph(graph);
+        }
+    }
+
+    #[test]
+    fn test_gphrx_does_edge_exist() {
+        let graph = gphrx_new_undirected();
+
+        unsafe {
+            assert_eq!(gphrx_does_edge_exist(graph, 2, 3), C_FALSE);
+            assert_eq!(gphrx_does_edge_exist(graph, 3, 2), C_FALSE);
+
+            gphrx_add_edge(graph, 3, 2);
+
+            assert_eq!(gphrx_does_edge_exist(graph, 2, 3), C_TRUE);
+            assert_eq!(gphrx_does_edge_exist(graph, 3, 2), C_TRUE);
+
+            free_gphrx_graph(graph);
+        }
+    }
+
+    #[test]
+    fn test_gphrx_find_avg_pool_matrix() {
+        let graph = gphrx_new_undirected();
+
+        unsafe {
+            let to_1_edges = [0u64, 2, 4, 7, 3];
+            let to_5_edges = [6u64, 8, 0, 1, 5, 4, 2];
+            gphrx_add_vertex(graph, 1, &to_1_edges as *const _, to_1_edges.len());
+            gphrx_add_vertex(graph, 5, &to_5_edges as *const _, to_5_edges.len());
+
+            gphrx_add_edge(graph, 7, 8);
+
+            let avg_pool_matrix = gphrx_find_avg_pool_matrix(graph, 5);
+
+            assert_eq!(gphrx_matrix_dimension(avg_pool_matrix), 2);
+            assert_eq!(gphrx_matrix_entry_count(avg_pool_matrix), 4);
+
+            assert_eq!(
+                (gphrx_matrix_get_entry(avg_pool_matrix, 0, 0) * 100.0).round() / 100.0,
+                0.32
+            );
+            assert_eq!(
+                (gphrx_matrix_get_entry(avg_pool_matrix, 0, 1) * 100.0).round() / 100.0,
+                0.20
+            );
+            assert_eq!(
+                (gphrx_matrix_get_entry(avg_pool_matrix, 1, 0) * 100.0).round() / 100.0,
+                0.20
+            );
+            assert_eq!(
+                (gphrx_matrix_get_entry(avg_pool_matrix, 1, 1) * 100.0).round() / 100.0,
+                0.28
+            );
+
+            free_gphrx_graph(graph);
+            free_gphrx_matrix(avg_pool_matrix);
+        }
+    }
+
+    #[test]
+    fn test_gphrx_approximate() {
+        let graph = gphrx_new_undirected();
+
+        unsafe {
+            let to_1_edges = [0u64, 2, 4, 7, 3];
+            let to_5_edges = [6u64, 8, 0, 1, 5, 4, 2];
+            gphrx_add_vertex(graph, 1, &to_1_edges as *const _, to_1_edges.len());
+            gphrx_add_vertex(graph, 5, &to_5_edges as *const _, to_5_edges.len());
+
+            gphrx_add_edge(graph, 7, 8);
+
+            let approx_graph = gphrx_approximate(graph, 5, 0.25);
+
+            assert_eq!(
+                gphrx_is_undirected(approx_graph),
+                gphrx_is_undirected(graph)
+            );
+            assert_eq!(gphrx_vertex_count(approx_graph), 2);
+            assert_eq!(gphrx_edge_count(approx_graph), 2);
+
+            assert_eq!(gphrx_does_edge_exist(approx_graph, 0, 0), C_TRUE);
+            assert_eq!(gphrx_does_edge_exist(approx_graph, 1, 1), C_TRUE);
+
+            free_gphrx_graph(graph);
+            free_gphrx_graph(approx_graph);
+        }
+    }
+
+    #[test]
+    fn test_gphrx_compress() {
+        let graph = gphrx_new_directed();
+
+        unsafe {
+            gphrx_add_vertex(graph, 23, ptr::null(), 0);
+
+            for i in 8..16 {
+                for j in 8..16 {
+                    gphrx_add_edge(graph, i, j);
+                }
+            }
+
+            for i in 0..8 {
+                for j in 0..4 {
+                    gphrx_add_edge(graph, i, j);
+                }
+            }
+
+            gphrx_add_edge(graph, 22, 18);
+            gphrx_add_edge(graph, 15, 18);
+
+            let compressed_graph = gphrx_compress(graph, 0.2);
+
+            assert_eq!(
+                gphrx_compressed_graph_is_undirected(compressed_graph),
+                gphrx_is_undirected(graph)
+            );
+            assert_eq!(gphrx_compressed_graph_threshold(compressed_graph), 0.2);
+            assert_eq!(
+                gphrx_compressed_graph_vertex_count(compressed_graph),
+                gphrx_vertex_count(graph)
+            );
+            assert_eq!(gphrx_compressed_graph_vertex_count(compressed_graph), 24);
+            assert_eq!(gphrx_compressed_graph_edge_count(compressed_graph), 96); // 64 + 32
+
+            assert_eq!(
+                gphrx_get_compressed_matrix_entry(compressed_graph, 0, 0),
+                0x00000000ffffffffu64
+            );
+            assert_eq!(
+                gphrx_get_compressed_matrix_entry(compressed_graph, 1, 1),
+                u64::MAX
+            );
+
+            free_gphrx_graph(graph);
+            free_gphrx_compressed_graph(compressed_graph);
+        }
+    }
+
+    #[test]
+    fn test_gphrx_get_edge_list() {
+        let graph = gphrx_new_directed();
+        let edges = vec![
+            (3, 9),
+            (200, 30),
+            (15, 39),
+            (10, 20),
+            (200, 31),
+            (588, 1039),
+        ];
+
+        unsafe {
+            for (from, to) in &edges {
+                gphrx_add_edge(graph, *from, *to);
+            }
+
+            let mut size: usize = 0;
+            let edge_list = gphrx_get_edge_list(graph, &mut size as *mut usize);
+
+            assert_eq!(size, edges.len());
+
+            let slice = slice::from_raw_parts(edge_list, size);
+            let edges_from_list = slice
+                .iter()
+                .map(|edge| (edge.col, edge.row))
+                .collect::<Vec<_>>();
+
+            for (col, row) in edges {
+                assert!(edges_from_list.contains(&(col, row)));
+            }
+
+            free_gphrx_edge_list(edge_list, size);
+            free_gphrx_graph(graph);
+        }
+    }
+
+    #[test]
+    fn test_gphrx_add_vertex() {
+        let graph = gphrx_new_undirected();
+
+        unsafe {
+            let to_500_edges = [0u64, 2, 3, 500, 2, 500];
+            gphrx_add_vertex(graph, 500, &to_500_edges as *const _, to_500_edges.len());
+
+            assert_eq!(gphrx_vertex_count(graph), 501);
+            assert_eq!(gphrx_edge_count(graph), 7);
+
+            assert_eq!(gphrx_does_edge_exist(graph, 0, 500), C_TRUE);
+            assert_eq!(gphrx_does_edge_exist(graph, 500, 0), C_TRUE);
+            assert_eq!(gphrx_does_edge_exist(graph, 2, 500), C_TRUE);
+            assert_eq!(gphrx_does_edge_exist(graph, 500, 2), C_TRUE);
+            assert_eq!(gphrx_does_edge_exist(graph, 3, 500), C_TRUE);
+            assert_eq!(gphrx_does_edge_exist(graph, 500, 3), C_TRUE);
+            assert_eq!(gphrx_does_edge_exist(graph, 500, 500), C_TRUE);
+
+            free_gphrx_graph(graph);
+        }
+
+        let graph = gphrx_new_directed();
+
+        unsafe {
+            let to_500_edges = [0u64, 2, 3, 500, 2, 500];
+            gphrx_add_vertex(graph, 500, &to_500_edges as *const _, to_500_edges.len());
+
+            assert_eq!(gphrx_vertex_count(graph), 501);
+            assert_eq!(gphrx_edge_count(graph), 4);
+
+            assert_eq!(gphrx_does_edge_exist(graph, 500, 0), C_TRUE);
+            assert_eq!(gphrx_does_edge_exist(graph, 500, 2), C_TRUE);
+            assert_eq!(gphrx_does_edge_exist(graph, 500, 3), C_TRUE);
+            assert_eq!(gphrx_does_edge_exist(graph, 500, 500), C_TRUE);
+
+            free_gphrx_graph(graph);
+        }
+    }
+
+    #[test]
+    fn test_gphrx_add_edge() {
+        let graph = gphrx_new_undirected();
+
+        unsafe {
+            gphrx_add_edge(graph, 500, 0);
+            gphrx_add_edge(graph, 500, 2);
+            gphrx_add_edge(graph, 500, 3);
+            gphrx_add_edge(graph, 500, 500);
+
+            assert_eq!(gphrx_vertex_count(graph), 501);
+            assert_eq!(gphrx_edge_count(graph), 7);
+
+            assert_eq!(gphrx_does_edge_exist(graph, 0, 500), C_TRUE);
+            assert_eq!(gphrx_does_edge_exist(graph, 500, 0), C_TRUE);
+            assert_eq!(gphrx_does_edge_exist(graph, 2, 500), C_TRUE);
+            assert_eq!(gphrx_does_edge_exist(graph, 500, 2), C_TRUE);
+            assert_eq!(gphrx_does_edge_exist(graph, 3, 500), C_TRUE);
+            assert_eq!(gphrx_does_edge_exist(graph, 500, 3), C_TRUE);
+            assert_eq!(gphrx_does_edge_exist(graph, 500, 500), C_TRUE);
+
+            free_gphrx_graph(graph);
+        }
+
+        let graph = gphrx_new_directed();
+
+        unsafe {
+            gphrx_add_edge(graph, 500, 0);
+            gphrx_add_edge(graph, 500, 2);
+            gphrx_add_edge(graph, 500, 3);
+            gphrx_add_edge(graph, 500, 500);
+
+            assert_eq!(gphrx_vertex_count(graph), 501);
+            assert_eq!(gphrx_edge_count(graph), 4);
+
+            assert_eq!(gphrx_does_edge_exist(graph, 500, 0), C_TRUE);
+            assert_eq!(gphrx_does_edge_exist(graph, 500, 2), C_TRUE);
+            assert_eq!(gphrx_does_edge_exist(graph, 500, 3), C_TRUE);
+            assert_eq!(gphrx_does_edge_exist(graph, 500, 500), C_TRUE);
+
+            free_gphrx_graph(graph);
+        }
+    }
 
     // #[test]
     // fn test_gphrx_delete_edge() {
@@ -665,6 +1147,11 @@ mod tests {
 
     // #[test]
     // fn test_free_gphrx_compressed_graph() {
+    //     todo!();
+    // }
+
+    // #[test]
+    // fn test_gphrx_compressed_graph_duplicate() {
     //     todo!();
     // }
 
@@ -724,6 +1211,11 @@ mod tests {
     // }
 
     // #[test]
+    // fn test_gphrx_matrix_duplicate() {
+    //     todo!();
+    // }
+
+    // #[test]
     // fn test_free_gphrx_matrix_entry_list() {
     //     todo!();
     // }
@@ -735,6 +1227,11 @@ mod tests {
 
     // #[test]
     // fn test_gphrx_matrix_entry_count() {
+    //     todo!();
+    // }
+
+    // #[test]
+    // fn test_gphrx_matrix_get_entry() {
     //     todo!();
     // }
 
