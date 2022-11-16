@@ -1,6 +1,11 @@
+// This module is meant only as a C interface, not for use in Rust. The documentation,
+// including safety warnings, should be placed in the header file.
+#![allow(clippy::missing_safety_doc)]
+
 use graphrox::matrix::{CsrSquareMatrix, MatrixRepresentation};
 use graphrox::{CompressedGraph, Graph, GraphRepresentation};
 
+use std::alloc;
 use std::ffi;
 use std::mem;
 use std::ptr;
@@ -55,7 +60,13 @@ pub unsafe extern "C" fn free_gphrx_string_buffer(buffer: *mut ffi::c_char) {
 
 #[no_mangle]
 pub unsafe extern "C" fn free_gphrx_bytes_buffer(buffer: *mut u8, buffer_size: usize) {
-    drop(slice::from_raw_parts(buffer, buffer_size));
+    if buffer_size != 0 {
+        let slice = slice::from_raw_parts_mut(buffer, buffer_size);
+        ptr::drop_in_place(slice);
+        
+        let layout = alloc::Layout::array::<u8>(buffer_size).unwrap_unchecked();
+        alloc::dealloc(buffer, layout);
+    }
 }
 
 // Graph
@@ -65,8 +76,14 @@ pub unsafe extern "C" fn free_gphrx_graph(graph: GphrxGraph) {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn free_gphrx_edge_list(list: *const GphrxGraphEdge, length: usize) {
-    drop(slice::from_raw_parts(list, length));
+pub unsafe extern "C" fn free_gphrx_edge_list(list: *mut GphrxGraphEdge, length: usize) {
+    if length != 0 {
+        let slice = slice::from_raw_parts_mut(list, length);
+        ptr::drop_in_place(slice);
+        
+        let layout = alloc::Layout::array::<GphrxGraphEdge>(length).unwrap_unchecked();
+        alloc::dealloc(list as *mut u8, layout);
+    }
 }
 
 #[no_mangle]
@@ -245,13 +262,16 @@ pub unsafe extern "C" fn gphrx_get_edge_list(
     let mut buffer = mem::MaybeUninit::new(Vec::with_capacity(graph.edge_count() as usize));
     *length = graph.edge_count() as usize;
 
-    let buffer_ptr = unsafe {
+    let buffer_ptr = {
         (*buffer.as_mut_ptr()).set_len((*buffer.as_mut_ptr()).capacity());
         (*buffer.as_mut_ptr()).as_mut_ptr() as *mut GphrxGraphEdge
     };
 
+
     let mut pos = 0;
 
+    // Using pos as an explicit loop counter is more clear than what Clippy suggests
+    #[allow(clippy::explicit_counter_loop)]
     for (col, row) in graph {
         let edge = GphrxGraphEdge { col, row };
         ptr::write(buffer_ptr.add(pos), edge);
@@ -444,8 +464,17 @@ pub unsafe extern "C" fn free_gphrx_matrix(matrix: GphrxCsrSquareMatrix) {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn free_gphrx_matrix_entry_list(list: *const GphrxMatrixEntry, length: usize) {
-    drop(slice::from_raw_parts(list, length));
+pub unsafe extern "C" fn free_gphrx_matrix_entry_list(
+    list: *mut GphrxMatrixEntry,
+    length: usize,
+) {
+    if length != 0 {
+        let slice = slice::from_raw_parts_mut(list, length);
+        ptr::drop_in_place(slice);
+        
+        let layout = alloc::Layout::array::<GphrxMatrixEntry>(length).unwrap_unchecked();
+        alloc::dealloc(list as *mut u8, layout);
+    }
 }
 
 #[no_mangle]
@@ -507,13 +536,15 @@ pub unsafe extern "C" fn gphrx_matrix_get_entry_list(
     let mut buffer = mem::MaybeUninit::new(Vec::with_capacity(matrix.entry_count() as usize));
     *length = matrix.entry_count() as usize;
 
-    let buffer_ptr = unsafe {
+    let buffer_ptr = {
         (*buffer.as_mut_ptr()).set_len((*buffer.as_mut_ptr()).capacity());
         (*buffer.as_mut_ptr()).as_mut_ptr() as *mut GphrxMatrixEntry
     };
 
     let mut pos = 0;
 
+    // Using pos as an explicit loop counter is more clear than what Clippy suggests
+    #[allow(clippy::explicit_counter_loop)]
     for (entry, col, row) in matrix {
         let entry = GphrxMatrixEntry { entry, col, row };
         ptr::write(buffer_ptr.add(pos), entry);
@@ -522,7 +553,6 @@ pub unsafe extern "C" fn gphrx_matrix_get_entry_list(
 
     buffer_ptr as *const GphrxMatrixEntry
 }
-
 
 #[cfg(test)]
 mod tests {

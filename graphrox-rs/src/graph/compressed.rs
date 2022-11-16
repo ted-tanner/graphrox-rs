@@ -270,9 +270,7 @@ impl GraphRepresentation for CompressedGraph {
             }
         }
 
-        let buffer = unsafe { buffer.assume_init() };
-
-        buffer
+        unsafe { buffer.assume_init() }
     }
 }
 

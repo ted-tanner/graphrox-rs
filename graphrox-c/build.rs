@@ -3,7 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 
 fn main() {
-    const GPHRX_HEADER_FILE_NAME: &'static str = "gphrx.h";
+    const GPHRX_HEADER_FILE_NAME: &str = "gphrx.h";
 
     let crate_dir = PathBuf::from(
         env::var("CARGO_MANIFEST_DIR")

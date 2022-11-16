@@ -650,9 +650,7 @@ impl GraphRepresentation for StandardGraph {
             }
         }
 
-        let buffer = unsafe { buffer.assume_init() };
-
-        buffer
+        unsafe { buffer.assume_init() }
     }
 }
 
