@@ -47,34 +47,7 @@ pub struct GphrxCsrSquareMatrix {
     pub matrix_ptr: *mut ffi::c_void,
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn free_gphrx_graph(graph: GphrxGraph) {
-    drop(Box::from_raw(graph.graph_ptr as *mut Graph));
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn free_gphrx_compressed_graph(graph: GphrxCompressedGraph) {
-    drop(Box::from_raw(graph.graph_ptr as *mut CompressedGraph));
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn free_gphrx_matrix(matrix: GphrxCsrSquareMatrix) {
-    // This module only exposes an average pool matrix, which is of type CsrSquareMatrix<f64>
-    drop(Box::from_raw(
-        matrix.matrix_ptr as *mut CsrSquareMatrix<f64>,
-    ));
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn free_gphrx_edge_list(list: *const GphrxGraphEdge, length: usize) {
-    drop(slice::from_raw_parts(list, length));
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn free_gphrx_matrix_entry_list(list: *const GphrxMatrixEntry, length: usize) {
-    drop(slice::from_raw_parts(list, length));
-}
-
+// Buffers
 #[no_mangle]
 pub unsafe extern "C" fn free_gphrx_string_buffer(buffer: *mut ffi::c_char) {
     drop(ffi::CString::from_raw(buffer));
@@ -83,6 +56,17 @@ pub unsafe extern "C" fn free_gphrx_string_buffer(buffer: *mut ffi::c_char) {
 #[no_mangle]
 pub unsafe extern "C" fn free_gphrx_bytes_buffer(buffer: *mut u8, buffer_size: usize) {
     drop(slice::from_raw_parts(buffer, buffer_size));
+}
+
+// Graph
+#[no_mangle]
+pub unsafe extern "C" fn free_gphrx_graph(graph: GphrxGraph) {
+    drop(Box::from_raw(graph.graph_ptr as *mut Graph));
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn free_gphrx_edge_list(list: *const GphrxGraphEdge, length: usize) {
+    drop(slice::from_raw_parts(list, length));
 }
 
 #[no_mangle]
@@ -100,6 +84,29 @@ pub extern "C" fn gphrx_new_directed() -> GphrxGraph {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn gphrx_from_bytes(
+    buffer: *const u8,
+    buffer_size: usize,
+    error: *mut u8,
+) -> GphrxGraph {
+    let buffer = mem::ManuallyDrop::new(slice::from_raw_parts(buffer, buffer_size));
+
+    let graph = match Graph::try_from(*buffer) {
+        Ok(b) => b,
+        Err(_) => {
+            *error = GPHRX_ERROR_INVALID_FORMAT;
+            return GphrxGraph {
+                graph_ptr: ptr::null_mut(),
+            };
+        }
+    };
+
+    GphrxGraph {
+        graph_ptr: Box::into_raw(Box::new(graph)) as *mut ffi::c_void,
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn gphrx_duplicate(graph: GphrxGraph) -> GphrxGraph {
     let graph = (graph.graph_ptr as *const Graph)
         .as_ref()
@@ -111,35 +118,25 @@ pub unsafe extern "C" fn gphrx_duplicate(graph: GphrxGraph) -> GphrxGraph {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn gphrx_add_vertex(
-    graph: GphrxGraph,
-    vertex_id: u64,
-    to_edges: *const u64,
-    to_edges_len: usize,
-) {
-    let graph = (graph.graph_ptr as *mut Graph).as_mut().unwrap_unchecked();
+pub unsafe extern "C" fn gphrx_matrix_string(graph: GphrxGraph) -> *const ffi::c_char {
+    let graph = (graph.graph_ptr as *const Graph)
+        .as_ref()
+        .unwrap_unchecked();
 
-    let to_edges = mem::ManuallyDrop::new(slice::from_raw_parts(to_edges, to_edges_len));
-
-    graph.add_vertex(vertex_id, Some(&to_edges));
+    ffi::CString::from_vec_unchecked((*graph).matrix_representation_string().as_bytes().to_vec())
+        .into_raw()
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn gphrx_add_edge(graph: GphrxGraph, from_vertex_id: u64, to_vertex_id: u64) {
-    let graph = (graph.graph_ptr as *mut Graph).as_mut().unwrap_unchecked();
+pub unsafe extern "C" fn gphrx_to_bytes(graph: GphrxGraph, buffer_size: *mut usize) -> *const u8 {
+    let graph = (graph.graph_ptr as *const Graph)
+        .as_ref()
+        .unwrap_unchecked();
 
-    graph.add_edge(from_vertex_id, to_vertex_id);
-}
+    let buffer = mem::ManuallyDrop::new(graph.to_bytes());
+    *buffer_size = buffer.len();
 
-#[no_mangle]
-pub unsafe extern "C" fn gphrx_delete_edge(
-    graph: GphrxGraph,
-    from_vertex_id: u64,
-    to_vertex_id: u64,
-) {
-    let graph = (graph.graph_ptr as *mut Graph).as_mut().unwrap_unchecked();
-
-    graph.delete_edge(from_vertex_id, to_vertex_id);
+    buffer.as_ptr()
 }
 
 #[no_mangle]
@@ -174,16 +171,6 @@ pub unsafe extern "C" fn gphrx_edge_count(graph: GphrxGraph) -> u64 {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn gphrx_matrix_string(graph: GphrxGraph) -> *const ffi::c_char {
-    let graph = (graph.graph_ptr as *const Graph)
-        .as_ref()
-        .unwrap_unchecked();
-
-    ffi::CString::from_vec_unchecked((*graph).matrix_representation_string().as_bytes().to_vec())
-        .into_raw()
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn gphrx_does_edge_exist(
     graph: GphrxGraph,
     from_vertex_id: u64,
@@ -197,41 +184,6 @@ pub unsafe extern "C" fn gphrx_does_edge_exist(
         C_TRUE
     } else {
         C_FALSE
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn gphrx_to_bytes(graph: GphrxGraph, buffer_size: *mut usize) -> *const u8 {
-    let graph = (graph.graph_ptr as *const Graph)
-        .as_ref()
-        .unwrap_unchecked();
-
-    let buffer = mem::ManuallyDrop::new(graph.to_bytes());
-    *buffer_size = buffer.len();
-
-    buffer.as_ptr()
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn gphrx_from_bytes(
-    buffer: *const u8,
-    buffer_size: usize,
-    error: *mut u8,
-) -> GphrxGraph {
-    let buffer = mem::ManuallyDrop::new(slice::from_raw_parts(buffer, buffer_size));
-
-    let graph = match Graph::try_from(*buffer) {
-        Ok(b) => b,
-        Err(_) => {
-            *error = GPHRX_ERROR_INVALID_FORMAT;
-            return GphrxGraph {
-                graph_ptr: ptr::null_mut(),
-            };
-        }
-    };
-
-    GphrxGraph {
-        graph_ptr: Box::into_raw(Box::new(graph)) as *mut ffi::c_void,
     }
 }
 
@@ -310,78 +262,41 @@ pub unsafe extern "C" fn gphrx_get_edge_list(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn gphrx_matrix_dimension(matrix: GphrxCsrSquareMatrix) -> u64 {
-    let matrix = (matrix.matrix_ptr as *const CsrSquareMatrix<f64>)
-        .as_ref()
-        .unwrap_unchecked();
+pub unsafe extern "C" fn gphrx_add_vertex(
+    graph: GphrxGraph,
+    vertex_id: u64,
+    to_edges: *const u64,
+    to_edges_len: usize,
+) {
+    let graph = (graph.graph_ptr as *mut Graph).as_mut().unwrap_unchecked();
 
-    matrix.dimension()
+    let to_edges = mem::ManuallyDrop::new(slice::from_raw_parts(to_edges, to_edges_len));
+
+    graph.add_vertex(vertex_id, Some(&to_edges));
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn gphrx_matrix_entry_count(matrix: GphrxCsrSquareMatrix) -> u64 {
-    let matrix = (matrix.matrix_ptr as *const CsrSquareMatrix<f64>)
-        .as_ref()
-        .unwrap_unchecked();
+pub unsafe extern "C" fn gphrx_add_edge(graph: GphrxGraph, from_vertex_id: u64, to_vertex_id: u64) {
+    let graph = (graph.graph_ptr as *mut Graph).as_mut().unwrap_unchecked();
 
-    matrix.entry_count()
+    graph.add_edge(from_vertex_id, to_vertex_id);
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn gphrx_matrix_to_string(
-    matrix: GphrxCsrSquareMatrix,
-) -> *const ffi::c_char {
-    let matrix = (matrix.matrix_ptr as *const CsrSquareMatrix<f64>)
-        .as_ref()
-        .unwrap_unchecked();
+pub unsafe extern "C" fn gphrx_delete_edge(
+    graph: GphrxGraph,
+    from_vertex_id: u64,
+    to_vertex_id: u64,
+) {
+    let graph = (graph.graph_ptr as *mut Graph).as_mut().unwrap_unchecked();
 
-    ffi::CString::from_vec_unchecked((*matrix).to_string().as_bytes().to_vec()).into_raw()
+    graph.delete_edge(from_vertex_id, to_vertex_id);
 }
 
+// CompressedGraph
 #[no_mangle]
-pub unsafe extern "C" fn gphrx_matrix_to_string_with_precision(
-    matrix: GphrxCsrSquareMatrix,
-    decimal_digits: usize,
-) -> *const ffi::c_char {
-    let matrix = (matrix.matrix_ptr as *const CsrSquareMatrix<f64>)
-        .as_ref()
-        .unwrap_unchecked();
-
-    ffi::CString::from_vec_unchecked(
-        (*matrix)
-            .to_string_with_precision(decimal_digits)
-            .as_bytes()
-            .to_vec(),
-    )
-    .into_raw()
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn gphrx_matrix_get_entry_list(
-    matrix: GphrxCsrSquareMatrix,
-    length: *mut usize,
-) -> *const GphrxMatrixEntry {
-    let matrix = (matrix.matrix_ptr as *const CsrSquareMatrix<f64>)
-        .as_ref()
-        .unwrap_unchecked();
-
-    let mut buffer = mem::MaybeUninit::new(Vec::with_capacity(matrix.entry_count() as usize));
-    *length = matrix.entry_count() as usize;
-
-    let buffer_ptr = unsafe {
-        (*buffer.as_mut_ptr()).set_len((*buffer.as_mut_ptr()).capacity());
-        (*buffer.as_mut_ptr()).as_mut_ptr() as *mut GphrxMatrixEntry
-    };
-
-    let mut pos = 0;
-
-    for (entry, col, row) in matrix {
-        let entry = GphrxMatrixEntry { entry, col, row };
-        ptr::write(buffer_ptr.add(pos), entry);
-        pos += 1;
-    }
-
-    buffer_ptr as *const GphrxMatrixEntry
+pub unsafe extern "C" fn free_gphrx_compressed_graph(graph: GphrxCompressedGraph) {
+    drop(Box::from_raw(graph.graph_ptr as *mut CompressedGraph));
 }
 
 #[no_mangle]
@@ -457,7 +372,7 @@ pub unsafe extern "C" fn gphrx_get_compressed_matrix_entry(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn gphrx_compressed_graph_matrix_representation_string(
+pub unsafe extern "C" fn gphrx_compressed_graph_matrix_string(
     graph: GphrxCompressedGraph,
 ) -> *const ffi::c_char {
     let graph = (graph.graph_ptr as *const CompressedGraph)
@@ -518,6 +433,96 @@ pub unsafe extern "C" fn gphrx_decompress(graph: GphrxCompressedGraph) -> GphrxG
         graph_ptr: Box::into_raw(Box::new(graph)) as *mut ffi::c_void,
     }
 }
+
+// CsrSquareMatrix
+#[no_mangle]
+pub unsafe extern "C" fn free_gphrx_matrix(matrix: GphrxCsrSquareMatrix) {
+    // This module only exposes an average pool matrix, which is of type CsrSquareMatrix<f64>
+    drop(Box::from_raw(
+        matrix.matrix_ptr as *mut CsrSquareMatrix<f64>,
+    ));
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn free_gphrx_matrix_entry_list(list: *const GphrxMatrixEntry, length: usize) {
+    drop(slice::from_raw_parts(list, length));
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn gphrx_matrix_dimension(matrix: GphrxCsrSquareMatrix) -> u64 {
+    let matrix = (matrix.matrix_ptr as *const CsrSquareMatrix<f64>)
+        .as_ref()
+        .unwrap_unchecked();
+
+    matrix.dimension()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn gphrx_matrix_entry_count(matrix: GphrxCsrSquareMatrix) -> u64 {
+    let matrix = (matrix.matrix_ptr as *const CsrSquareMatrix<f64>)
+        .as_ref()
+        .unwrap_unchecked();
+
+    matrix.entry_count()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn gphrx_matrix_to_string(
+    matrix: GphrxCsrSquareMatrix,
+) -> *const ffi::c_char {
+    let matrix = (matrix.matrix_ptr as *const CsrSquareMatrix<f64>)
+        .as_ref()
+        .unwrap_unchecked();
+
+    ffi::CString::from_vec_unchecked((*matrix).to_string().as_bytes().to_vec()).into_raw()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn gphrx_matrix_to_string_with_precision(
+    matrix: GphrxCsrSquareMatrix,
+    decimal_digits: usize,
+) -> *const ffi::c_char {
+    let matrix = (matrix.matrix_ptr as *const CsrSquareMatrix<f64>)
+        .as_ref()
+        .unwrap_unchecked();
+
+    ffi::CString::from_vec_unchecked(
+        (*matrix)
+            .to_string_with_precision(decimal_digits)
+            .as_bytes()
+            .to_vec(),
+    )
+    .into_raw()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn gphrx_matrix_get_entry_list(
+    matrix: GphrxCsrSquareMatrix,
+    length: *mut usize,
+) -> *const GphrxMatrixEntry {
+    let matrix = (matrix.matrix_ptr as *const CsrSquareMatrix<f64>)
+        .as_ref()
+        .unwrap_unchecked();
+
+    let mut buffer = mem::MaybeUninit::new(Vec::with_capacity(matrix.entry_count() as usize));
+    *length = matrix.entry_count() as usize;
+
+    let buffer_ptr = unsafe {
+        (*buffer.as_mut_ptr()).set_len((*buffer.as_mut_ptr()).capacity());
+        (*buffer.as_mut_ptr()).as_mut_ptr() as *mut GphrxMatrixEntry
+    };
+
+    let mut pos = 0;
+
+    for (entry, col, row) in matrix {
+        let entry = GphrxMatrixEntry { entry, col, row };
+        ptr::write(buffer_ptr.add(pos), entry);
+        pos += 1;
+    }
+
+    buffer_ptr as *const GphrxMatrixEntry
+}
+
 
 #[cfg(test)]
 mod tests {
