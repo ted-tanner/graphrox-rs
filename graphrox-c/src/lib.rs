@@ -293,7 +293,14 @@ pub unsafe extern "C" fn gphrx_add_vertex(
 
     let to_edges = mem::ManuallyDrop::new(slice::from_raw_parts(to_edges, to_edges_len));
 
-    graph.add_vertex(vertex_id, Some(&to_edges));
+    graph.add_vertex(
+        vertex_id,
+        if to_edges_len == 0 {
+            None
+        } else {
+            Some(&to_edges)
+        },
+    );
 }
 
 #[no_mangle]
@@ -556,7 +563,7 @@ pub unsafe extern "C" fn gphrx_matrix_to_string_with_precision(
             .as_bytes()
             .to_vec(),
     )
-    .into_raw()
+        .into_raw()
 }
 
 #[no_mangle]
@@ -788,16 +795,20 @@ mod tests {
             gphrx_add_edge(graph, 2, 2);
 
             let graph_string = ffi::CString::from_raw(gphrx_matrix_string(graph));
+            let graph_string = graph_string.as_c_str().to_str().unwrap();
             let expected = "[ 0, 1, 0 ]\r\n[ 0, 0, 0 ]\r\n[ 1, 1, 1 ]";
 
-            assert_eq!(expected, graph_string.as_c_str().to_str().unwrap());
+            assert_eq!(expected.len(), graph_string.len());
+            assert_eq!(expected, graph_string);
 
             gphrx_add_vertex(graph, 3, ptr::null(), 0);
 
             let graph_string = ffi::CString::from_raw(gphrx_matrix_string(graph));
+            let graph_string = graph_string.as_c_str().to_str().unwrap();
             let expected = "[ 0, 1, 0, 0 ]\r\n[ 0, 0, 0, 0 ]\r\n[ 1, 1, 1, 0 ]\r\n[ 0, 0, 0, 0 ]";
 
-            assert_eq!(expected, graph_string.as_c_str().to_str().unwrap());
+            assert_eq!(expected.len(), graph_string.len());
+            assert_eq!(expected, graph_string);
 
             free_gphrx_graph(graph);
         }
@@ -1140,45 +1151,288 @@ mod tests {
         }
     }
 
-    // #[test]
-    // fn test_gphrx_delete_edge() {
-    //     todo!();
-    // }
+    #[test]
+    fn test_gphrx_delete_edge() {
+        let graph = gphrx_new_undirected();
 
-    // #[test]
-    // fn test_free_gphrx_compressed_graph() {
-    //     todo!();
-    // }
+        unsafe {
+            gphrx_add_edge(graph, 500, 0);
+            gphrx_add_edge(graph, 500, 2);
+            gphrx_add_edge(graph, 500, 3);
+            gphrx_add_edge(graph, 500, 500);
 
-    // #[test]
-    // fn test_gphrx_compressed_graph_duplicate() {
-    //     todo!();
-    // }
+            assert_eq!(gphrx_edge_count(graph), 7);
 
-    // #[test]
-    // fn test_gphrx_compressed_graph_threshold() {
-    //     todo!();
-    // }
+            gphrx_delete_edge(graph, 500, 3);
 
-    // #[test]
-    // fn test_gphrx_compressed_graph_is_undirected() {
-    //     todo!();
-    // }
+            assert_eq!(gphrx_edge_count(graph), 5);
 
-    // #[test]
-    // fn test_gphrx_compressed_graph_vertex_count() {
-    //     todo!();
-    // }
+            assert_eq!(gphrx_does_edge_exist(graph, 3, 500), C_FALSE);
+            assert_eq!(gphrx_does_edge_exist(graph, 500, 3), C_FALSE);
 
-    // #[test]
-    // fn test_gphrx_compressed_graph_edge_count() {
-    //     todo!();
-    // }
+            assert_eq!(gphrx_does_edge_exist(graph, 500, 500), C_TRUE);
+            gphrx_delete_edge(graph, 500, 500);
+            assert_eq!(gphrx_edge_count(graph), 4);
+            assert_eq!(gphrx_does_edge_exist(graph, 500, 500), C_FALSE);
 
-    // #[test]
-    // fn test_gphrx_compressed_graph_does_edge_exist() {
-    //     todo!();
-    // }
+            gphrx_delete_edge(graph, 500, 3);
+            assert_eq!(gphrx_edge_count(graph), 4);
+
+            free_gphrx_graph(graph);
+        }
+
+        let graph = gphrx_new_directed();
+
+        unsafe {
+            gphrx_add_edge(graph, 500, 0);
+            gphrx_add_edge(graph, 500, 2);
+            gphrx_add_edge(graph, 500, 3);
+            gphrx_add_edge(graph, 500, 500);
+
+            assert_eq!(gphrx_edge_count(graph), 4);
+            assert_eq!(gphrx_does_edge_exist(graph, 500, 3), C_TRUE);
+
+            gphrx_delete_edge(graph, 500, 3);
+
+            assert_eq!(gphrx_edge_count(graph), 3);
+
+            assert_eq!(gphrx_does_edge_exist(graph, 500, 3), C_FALSE);
+
+            free_gphrx_graph(graph);
+        }
+    }
+
+    #[test]
+    fn test_free_gphrx_compressed_graph() {
+        let graph = gphrx_new_directed();
+
+        unsafe {
+            gphrx_add_vertex(graph, 23, ptr::null(), 0);
+
+            for i in 8..16 {
+                for j in 8..16 {
+                    gphrx_add_edge(graph, i, j);
+                }
+            }
+
+            for i in 0..8 {
+                for j in 0..4 {
+                    gphrx_add_edge(graph, i, j);
+                }
+            }
+
+            gphrx_add_edge(graph, 22, 18);
+            gphrx_add_edge(graph, 15, 18);
+
+            let compressed_graph = gphrx_compress(graph, 0.2);
+
+            free_gphrx_graph(graph);
+
+            // Make sure this doesn't seg fault
+            free_gphrx_compressed_graph(compressed_graph);
+        }
+    }
+
+    #[test]
+    fn test_gphrx_compressed_graph_duplicate() {
+        let graph = gphrx_new_directed();
+
+        unsafe {
+            gphrx_add_vertex(graph, 23, ptr::null(), 0);
+
+            for i in 8..16 {
+                for j in 8..16 {
+                    gphrx_add_edge(graph, i, j);
+                }
+            }
+
+            for i in 0..8 {
+                for j in 0..4 {
+                    gphrx_add_edge(graph, i, j);
+                }
+            }
+
+            gphrx_add_edge(graph, 22, 18);
+            gphrx_add_edge(graph, 15, 18);
+
+            let compressed_graph = gphrx_compress(graph, 0.2);
+            let compressed_graph = gphrx_compressed_graph_duplicate(compressed_graph);
+
+            assert_eq!(
+                gphrx_compressed_graph_is_undirected(compressed_graph),
+                gphrx_is_undirected(graph)
+            );
+            assert_eq!(gphrx_compressed_graph_threshold(compressed_graph), 0.2);
+            assert_eq!(
+                gphrx_compressed_graph_vertex_count(compressed_graph),
+                gphrx_vertex_count(graph)
+            );
+            assert_eq!(gphrx_compressed_graph_vertex_count(compressed_graph), 24);
+            assert_eq!(gphrx_compressed_graph_edge_count(compressed_graph), 96); // 64 + 32
+
+            assert_eq!(
+                gphrx_get_compressed_matrix_entry(compressed_graph, 0, 0),
+                0x00000000ffffffffu64
+            );
+            assert_eq!(
+                gphrx_get_compressed_matrix_entry(compressed_graph, 1, 1),
+                u64::MAX
+            );
+
+            free_gphrx_graph(graph);
+            free_gphrx_compressed_graph(compressed_graph);
+        }
+    }
+
+    #[test]
+    fn test_gphrx_compressed_graph_threshold() {
+        let graph = gphrx_new_directed();
+
+        unsafe {
+            gphrx_add_edge(graph, 10, 1);
+
+            let compressed_graph = gphrx_compress(graph, 0.42);
+
+            assert_eq!(gphrx_compressed_graph_threshold(compressed_graph), 0.42);
+
+            free_gphrx_graph(graph);
+            free_gphrx_compressed_graph(compressed_graph);
+        }
+    }
+
+    #[test]
+    fn test_gphrx_compressed_graph_is_undirected() {
+        let graph = gphrx_new_undirected();
+
+        unsafe {
+            let compressed_graph = gphrx_compress(graph, 0.1);
+            assert_eq!(
+                gphrx_compressed_graph_is_undirected(compressed_graph),
+                C_TRUE
+            );
+        }
+
+        let graph = gphrx_new_directed();
+
+        unsafe {
+            let compressed_graph = gphrx_compress(graph, 0.1);
+            assert_eq!(
+                gphrx_compressed_graph_is_undirected(compressed_graph),
+                C_FALSE
+            );
+        }
+    }
+
+    #[test]
+    fn test_gphrx_compressed_graph_vertex_count() {
+        let graph = gphrx_new_undirected();
+
+        unsafe {
+            gphrx_add_edge(graph, 10, 1);
+
+            let compressed_graph = gphrx_compress(graph, 0.0);
+
+            assert_eq!(gphrx_compressed_graph_vertex_count(compressed_graph), 11);
+
+            free_gphrx_graph(graph);
+            free_gphrx_compressed_graph(compressed_graph);
+        }
+    }
+
+    #[test]
+    fn test_gphrx_compressed_graph_edge_count() {
+        let graph = gphrx_new_undirected();
+
+        unsafe {
+            gphrx_add_edge(graph, 10, 1);
+
+            let compressed_graph = gphrx_compress(graph, 0.0);
+
+            assert_eq!(gphrx_compressed_graph_edge_count(compressed_graph), 2);
+
+            free_gphrx_graph(graph);
+            free_gphrx_compressed_graph(compressed_graph);
+        }
+
+        let graph = gphrx_new_directed();
+
+        unsafe {
+            gphrx_add_edge(graph, 10, 1);
+
+            let compressed_graph = gphrx_compress(graph, 0.0);
+
+            assert_eq!(gphrx_compressed_graph_edge_count(compressed_graph), 1);
+
+            free_gphrx_graph(graph);
+            free_gphrx_compressed_graph(compressed_graph);
+        }
+    }
+
+    #[test]
+    fn test_gphrx_compressed_graph_does_edge_exist() {
+        let graph = gphrx_new_directed();
+
+        unsafe {
+            gphrx_add_vertex(graph, 23, ptr::null(), 0);
+
+            for i in 8..16 {
+                for j in 8..16 {
+                    gphrx_add_edge(graph, i, j);
+                }
+            }
+
+            for i in 0..8 {
+                for j in 0..4 {
+                    gphrx_add_edge(graph, i, j);
+                }
+            }
+
+            gphrx_add_edge(graph, 22, 18);
+            gphrx_add_edge(graph, 15, 18);
+
+            let compressed_graph = gphrx_compress(graph, 0.2);
+            let compressed_graph = gphrx_compressed_graph_duplicate(compressed_graph);
+
+            assert_eq!(
+                gphrx_compressed_graph_is_undirected(compressed_graph),
+                gphrx_is_undirected(graph)
+            );
+            assert_eq!(gphrx_compressed_graph_threshold(compressed_graph), 0.2);
+            assert_eq!(
+                gphrx_compressed_graph_vertex_count(compressed_graph),
+                gphrx_vertex_count(graph)
+            );
+            assert_eq!(gphrx_compressed_graph_vertex_count(compressed_graph), 24);
+            assert_eq!(gphrx_compressed_graph_edge_count(compressed_graph), 96); // 64 + 32
+
+            assert_eq!(
+                gphrx_get_compressed_matrix_entry(compressed_graph, 0, 0),
+                0x00000000ffffffffu64
+            );
+            assert_eq!(
+                gphrx_get_compressed_matrix_entry(compressed_graph, 1, 1),
+                u64::MAX
+            );
+
+            for i in 8..16 {
+                for j in 8..16 {
+                    assert_eq!(gphrx_compressed_graph_does_edge_exist(compressed_graph, i, j), C_TRUE);
+                }
+            }
+
+            for i in 0..8 {
+                for j in 0..4 {
+                    assert_eq!(gphrx_compressed_graph_does_edge_exist(compressed_graph, i, j), C_TRUE);
+                }
+            }
+
+            assert_eq!(gphrx_compressed_graph_does_edge_exist(compressed_graph, 22, 18), C_FALSE);
+            assert_eq!(gphrx_compressed_graph_does_edge_exist(compressed_graph, 15, 18), C_FALSE);
+
+            free_gphrx_graph(graph);
+            free_gphrx_compressed_graph(compressed_graph);
+        }
+    }
 
     // #[test]
     // fn test_gphrx_get_compressed_matrix_entry() {

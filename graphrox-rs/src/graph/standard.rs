@@ -1557,6 +1557,9 @@ mod tests {
             }
         }
 
+        assert!(!decompressed_graph.does_edge_exist(22, 18));
+        assert!(!decompressed_graph.does_edge_exist(15, 18));
+
         let mut graph = StandardGraph::new_undirected();
         graph.add_vertex(23, None);
 
