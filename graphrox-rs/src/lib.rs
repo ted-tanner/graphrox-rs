@@ -166,7 +166,7 @@
 //! assert_eq!(compressed_graph.edge_count(), 96); // 64 + 32
 //!
 //! // Because half of the 8x8 block was filled, half of the bits in the u64 are ones.
-//! assert_eq!(compressed_graph.get_compressed_matrix_entry(0, 0),0x00000000ffffffffu64);
+//! assert_eq!(compressed_graph.get_compressed_matrix_entry(0, 0), 0x00000000ffffffffu64);
 //!
 //! // Because the entire 8x8 block was filled, the block is represented with u64::MAX
 //! assert_eq!(compressed_graph.get_compressed_matrix_entry(1, 1), u64::MAX);

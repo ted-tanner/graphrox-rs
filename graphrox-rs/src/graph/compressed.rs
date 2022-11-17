@@ -163,7 +163,7 @@ impl CompressedGraph {
     /// let compressed_graph = graph.compress(0.05);
     ///
     /// // Because half of the 8x8 block was filled, half of the bits in the u64 are ones.
-    /// assert_eq!(compressed_graph.get_compressed_matrix_entry(0, 0),0x00000000ffffffffu64);
+    /// assert_eq!(compressed_graph.get_compressed_matrix_entry(0, 0), 0x00000000ffffffffu64);
     ///
     /// // Because the entire 8x8 block was filled, the block is represented with u64::MAX
     /// assert_eq!(compressed_graph.get_compressed_matrix_entry(1, 1), u64::MAX);
@@ -445,7 +445,7 @@ impl CompressedGraphBuilder {
         // matrix can be compressed down to an 8x8 matrix rather than a 9x9 one.
         // The adjacency_matrix.set_entry() function will add 1 to what is passed
         // the highest entry index to find its dimension.
-        if vertex_count % COMPRESSION_BLOCK_DIMENSION == 0 {
+        if vertex_count % COMPRESSION_BLOCK_DIMENSION == 0 && column_count != 0 {
             column_count -= 1;
         };
 
@@ -750,6 +750,9 @@ mod tests {
         assert_eq!(builder.graph.threshold, 1.0);
 
         let builder = CompressedGraphBuilder::new(true, 47, -53.9);
+        assert_eq!(builder.graph.threshold, GRAPH_APPROXIMATION_MIN_THRESHOLD);
+
+        let builder = CompressedGraphBuilder::new(false, 0, 0.0);
         assert_eq!(builder.graph.threshold, GRAPH_APPROXIMATION_MIN_THRESHOLD);
     }
 
