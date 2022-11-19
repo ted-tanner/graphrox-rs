@@ -25,8 +25,8 @@ pub struct GphrxGraph {
 
 #[repr(C)]
 pub struct GphrxGraphEdge {
-    pub col: u64,
-    pub row: u64,
+    pub from_edge: u64,
+    pub to_edge: u64,
 }
 
 #[repr(C)]
@@ -274,7 +274,10 @@ pub unsafe extern "C" fn gphrx_get_edge_list(
     // Using pos as an explicit loop counter is more clear than what Clippy suggests
     #[allow(clippy::explicit_counter_loop)]
     for (col, row) in graph {
-        let edge = GphrxGraphEdge { col, row };
+        let edge = GphrxGraphEdge {
+            from_edge: col,
+            to_edge: row,
+        };
         ptr::write(buffer_ptr.add(pos), edge);
         pos += 1;
     }
@@ -1055,7 +1058,7 @@ mod tests {
             let slice = slice::from_raw_parts(edge_list, size);
             let edges_from_list = slice
                 .iter()
-                .map(|edge| (edge.col, edge.row))
+                .map(|edge| (edge.from_edge, edge.to_edge))
                 .collect::<Vec<_>>();
 
             for (col, row) in edges {

@@ -45,8 +45,8 @@ class _GphrxGraph_c(ctypes.Structure):
     
 class _GphrxGraphEdge_c(ctypes.Structure):
     _fields_ = [
-        ('col', ctypes.c_uint64),
-        ('row', ctypes.c_uint64),
+        ('from_edge', ctypes.c_uint64),
+        ('to_edge', ctypes.c_uint64),
     ]
 
 
@@ -225,12 +225,12 @@ _lib.gphrx_matrix_get_entry_list.restype = ctypes.POINTER(_GphrxMatrixEntry_c)
 
 class Graph:
     def __init__(self, is_undirected=False, c_graph=None):
-        if c_graph_obj is not None:
-            if not isinstance(c_graph_obj, _GphrxGraph_c):
+        if c_graph is not None:
+            if not isinstance(c_graph, _GphrxGraph_c):
                 raise TypeError('provided item was of the wrong type')
-            self._graph = c_graph_obj
+            self._graph = c_graph
         else:
-            self._graph = gphrx_new_undirected() if is_undirected else gphrx_new_directed()
+            self._graph = _lib.gphrx_new_undirected() if is_undirected else _lib.gphrx_new_directed()
         
     def __del__(self):
         _lib.free_gphrx_graph(self._graph)
@@ -240,7 +240,7 @@ class Graph:
         bytes_ptr = _lib.gphrx_to_bytes(self._graph, ctypes.byref(size))
         py_bytes = bytes(bytes_ptr[:size.value])
 
-        _lib.free_gphrx_bytes_buffer(bytes_ptr)
+        _lib.free_gphrx_bytes_buffer(bytes_ptr, size)
 
         return py_bytes
 
@@ -269,18 +269,18 @@ class Graph:
         return py_str.decode('utf-8')
 
     def is_undirected(self):
-        return bool(_lib.gphrx_is_undirected(self._graph).value)
+        return bool(_lib.gphrx_is_undirected(self._graph))
 
     def vertex_count(self):
-        return int(_lib.gphrx_vertex_count(self._graph).value)
+        return int(_lib.gphrx_vertex_count(self._graph))
 
     def edge_count(self):
-        return int(_lib.gphrx_edge_count(self._graph).value)
+        return int(_lib.gphrx_edge_count(self._graph))
 
     def does_edge_exist(self, from_vertex_id, to_vertex_id):
         return bool(_lib.gphrx_does_edge_exist(self._graph,
                                                from_vertex_id,
-                                               to_vertex_id).value)
+                                               to_vertex_id))
 
     def add_vertex(self, vertex_id, to_edges=None):
         if to_edges is None or len(to_edges) == 0:
@@ -316,8 +316,10 @@ class Graph:
 
 class GraphEdgeList:
     def __init__(self, c_list_ptr, size):
-        if not isinstance(c_list_ptr, ctypes.POINTER):
+        if not hasattr(c_list_ptr, 'contents') or not hasattr(c_list_ptr, '_type_'):
             raise TypeError(type(self).__name__ + ' received a non-pointer object')
+        elif not isinstance(c_list_ptr.contents, _GphrxGraphEdge_c):
+            raise TypeError(type(self).__name__ + ' received a pointer to the wrong type')
 
         self._ptr = c_list_ptr
         self._size = size
@@ -333,32 +335,35 @@ class GraphEdgeList:
             idx = self._size - max(Math.abs(idx) % self._size, 1)
 
         item = self._ptr[idx]
-        return (int(item.col.value), int(item.row.value))
+        return (int(item.from_edge), int(item.to_edge))
 
     def __iter__(self):
-        return GraphEdgeListIterator(self._ptr, self._size)
+        return GraphEdgeListIterator(self._ptr, self._size, self)
 
     def __len__(self):
         return int(self._size)
 
 
 class GraphEdgeListIterator:
-    def __init__(self, c_list_ptr, size):
-        if not isinstance(c_list_ptr, ctypes.POINTER):
+    def __init__(self, c_list_ptr, size, list_ref):
+        if not hasattr(c_list_ptr, 'contents') or not hasattr(c_list_ptr, '_type_'):
             raise TypeError(type(self).__name__ + ' received a non-pointer object')
+        elif not isinstance(c_list_ptr.contents, _GphrxGraphEdge_c):
+            raise TypeError(type(self).__name__ + ' received a pointer to the wrong type')
 
         self._ptr = c_list_ptr
         self._size = size
         self._pos = 0
+        self._list_ref = list_ref
 
     def __next__(self):
         if self._pos == self._size:
             raise StopIteration
-        else:
+        else:            
             curr = self._ptr[self._pos]
             self._pos += 1
 
-            return (int(curr.col.value), int(curr.row.value))
+            return (int(curr.from_edge), int(curr.to_edge))
 
 
 class CompressedGraph:
@@ -374,7 +379,7 @@ class CompressedGraph:
     def __bytes__(self):
         size = ctypes.c_size_t()
         bytes_ptr = _lib.gphrx_compressed_graph_to_bytes(self._graph, ctypes.byref(size))
-        py_bytes = bytes(bytes_ptr[:size.value])
+        py_bytes = bytes(bytes_ptr[:size])
 
         _lib.free_gphrx_bytes_buffer(bytes_ptr)
 
@@ -409,24 +414,24 @@ class CompressedGraph:
         return Graph(c_graph=c_graph)
 
     def threshold(self):
-        return int(_lib.gphrx_compressed_graph_threshold(self._graph).value)
+        return int(_lib.gphrx_compressed_graph_threshold(self._graph))
 
     def is_undirected(self):
-        return bool(_lib.gphrx_compressed_graph_is_undirected(self._graph).value)
+        return bool(_lib.gphrx_compressed_graph_is_undirected(self._graph))
 
     def vertex_count(self):
-        return int(_lib.gphrx_compressed_graph_vertex_count(self._graph).value)
+        return int(_lib.gphrx_compressed_graph_vertex_count(self._graph))
 
     def edge_count(self):
-        return int(_lib.gphrx_compressed_graph_edge_count(self._graph).value)
+        return int(_lib.gphrx_compressed_graph_edge_count(self._graph))
 
     def does_edge_exist(self, from_vertex_id, to_vertex_id):
         return bool(_lib.gphrx_compressed_graph_does_edge_exist(self._graph,
                                                                 from_vertex_id,
-                                                                to_vertex_id).value)
+                                                                to_vertex_id))
 
     def get_compressed_matrix_entry(self, col, row):
-        return int(_lib.gphrx_get_compressed_matrix_entry(self._graph, col, row).value)
+        return int(_lib.gphrx_get_compressed_matrix_entry(self._graph, col, row))
         
 
 
@@ -448,13 +453,13 @@ class CsrSquareMatrix:
         return CsrSquareMatrix(c_matrix)
 
     def dimension(self):
-        return int(_lib.gphrx_matrix_dimension(self._matrix).value)
+        return int(_lib.gphrx_matrix_dimension(self._matrix))
 
     def entry_count(self):
-        return int(_lib.gphrx_matrix_entry_count(self._matrix).value)
+        return int(_lib.gphrx_matrix_entry_count(self._matrix))
 
     def get_entry(self, col, row):
-        return float(_lib.gphrx_matrix_get_entry(self._matrix, col, row).value)
+        return float(_lib.gphrx_matrix_get_entry(self._matrix, col, row))
 
     def to_string(self, decimal_digits=2):
         c_str = _lib.gphrx_matrix_to_string_with_precision(self._matrix, decimal_digits)
@@ -470,8 +475,10 @@ class CsrSquareMatrix:
 
 class CsrSquareMatrixEntryList:
     def __init__(self, c_list_ptr, size):
-        if not isinstance(c_list_ptr, ctypes.POINTER):
+        if not hasattr(c_list_ptr, 'contents') or not hasattr(c_list_ptr, '_type_'):
             raise TypeError(type(self).__name__ + ' received a non-pointer object')
+        elif not isinstance(c_list_ptr.contents, _GphrxGraphEdge_c):
+            raise TypeError(type(self).__name__ + ' received a pointer to the wrong type')
 
         self._ptr = c_list_ptr
         self._size = size
@@ -487,23 +494,26 @@ class CsrSquareMatrixEntryList:
             idx = self._size - max(Math.abs(idx) % self._size, 1)
 
         item = self._ptr[idx]
-        return (float(item.entry.value), int(item.col.value), int(item.row.value))
+        return (float(item.entry), int(item.col), int(item.row))
 
     def __iter__(self):
-        return CsrSquareMatrixEntryListIterator(self._ptr, self._size)
+        return CsrSquareMatrixEntryListIterator(self._ptr, self._size, self)
 
     def __len__(self):
         return int(self._size)
 
 
 class CsrSquareMatrixEntryListIterator:
-    def __init__(self, c_list_ptr, size):
-        if not isinstance(c_list_ptr, ctypes.POINTER):
+    def __init__(self, c_list_ptr, size, list_ref):
+        if not hasattr(c_list_ptr, 'contents') or not hasattr(c_list_ptr, '_type_'):
             raise TypeError(type(self).__name__ + ' received a non-pointer object')
+        elif not isinstance(c_list_ptr.contents, _GphrxGraphEdge_c):
+            raise TypeError(type(self).__name__ + ' received a pointer to the wrong type')
 
         self._ptr = c_list_ptr
         self._size = size
         self._pos = 0
+        self._list_ref = list_ref
 
     def __next__(self):
         if self._pos == self._size:
@@ -512,4 +522,4 @@ class CsrSquareMatrixEntryListIterator:
             curr = self._ptr[self._pos]
             self._pos += 1
 
-            return (float(curr.entry.value), int(curr.col.value), int(curr.row.value))
+            return (float(curr.entry), int(curr.col), int(curr.row))

@@ -10,8 +10,8 @@ typedef struct {
 } GphrxGraph;
 
 typedef struct {
-    uint64_t col;
-    uint64_t row;
+    uint64_t from_edge;
+    uint64_t to_edge;
 } GphrxGraphEdge;
 
 typedef struct {
