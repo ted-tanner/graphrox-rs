@@ -193,7 +193,7 @@ _lib.free_gphrx_matrix.argtypes = [_GphrxCsrSquareMatrix_c]
 _lib.free_gphrx_matrix.restype = None
 
 _lib.free_gphrx_matrix_entry_list.argtypes = (ctypes.POINTER(_GphrxMatrixEntry_c),
-                                               ctypes.c_size_t)
+                                              ctypes.c_size_t)
 _lib.free_gphrx_matrix_entry_list.restype = None
 
 _lib.gphrx_matrix_duplicate.argtypes = [_GphrxCsrSquareMatrix_c]
@@ -217,6 +217,99 @@ _lib.gphrx_matrix_to_string_with_precision.argtypes = (_GphrxCsrSquareMatrix_c,
                                                         ctypes.c_size_t)
 _lib.gphrx_matrix_to_string_with_precision.restype = ctypes.c_void_p
 
-_lib.gphrx_matrix_get_entry.argtypes = (_GphrxCsrSquareMatrix_c,
-                                         ctypes.POINTER(ctypes.c_size_t))
-_lib.gphrx_matrix_get_entry.restype = ctypes.POINTER(_GphrxMatrixEntry_c)
+_lib.gphrx_matrix_get_entry_list.argtypes = (_GphrxCsrSquareMatrix_c,
+                                             ctypes.POINTER(ctypes.c_size_t))
+_lib.gphrx_matrix_get_entry_list.restype = ctypes.POINTER(_GphrxMatrixEntry_c)
+
+
+class Graph:
+    pass
+
+
+class CompressedGraph:
+    pass
+
+
+class CsrSquareMatrix:
+    def __init__(self, c_csr_matrix):
+        if not isinstance(c_csr_matrix, _GphrxCsrSquareMatrix_c):
+            raise TypeError('Provided matrix was of the wrong type')
+        
+        self._matrix = c_csr_matrix
+
+    def __del__(self):
+        _lib.free_gphrx_matrix(self._matrix)
+
+    def duplicate(self):
+        c_matrix = _lib.gphrx_matrix_duplicate(self._matrix)
+        return CsrSquareMatrix(c_matrix)
+
+    def dimension(self):
+        return int(_lib.gphrx_matrix_dimension(self._matrix))
+
+    def entry_count(self):
+        return int(_lib.gphrx_matrix_entry_count(self._matrix))
+
+    def get_entry(self, col, row):
+        return float(_lib.gphrx_matrix_get_entry(self._matrix, col, row))
+
+    def to_string(self, decimal_digits=2):
+        c_str = _lib.gphrx_matrix_to_string_with_precision(self._matrix, decimal_digits)
+        py_str = ctypes.cast(c_str, ctypes.c_char_p).value
+        _lib.free_gphrx_string_buffer(c_str)
+        return py_str.decode('utf-8')
+
+    def __str__(self):
+        return self.to_string()
+
+    def entry_list(self):
+        size = ctypes.c_size_t()
+        arr_ptr = _lib.gphrx_matrix_get_entry_list(self._matrix, ctypes.byref(size))
+        return CsrSquareMatrixEntryList(arr_ptr, size)
+
+    
+class CsrSquareMatrixEntryListIterator:
+    def __init__(self, c_list_ptr, size):
+        if not isinstance(c_list_ptr, ctypes.POINTER):
+            raise TypeError(type(self).__name__ + ' received a non-pointer object')
+
+        self._ptr = c_list_ptr
+        self._size = size
+        self._pos = 0
+
+    def __next__(self):
+        if self._pos == self._size:
+            raise StopIteration
+        else:
+            curr = self._ptr[self._pos]
+            self._pos += 1
+
+            return (float(curr.entry), int(curr.col), int(curr.row))
+    
+
+class CsrSquareMatrixEntryList:
+    def __init__(self, c_list_ptr, size):
+        if not isinstance(c_list_ptr, ctypes.POINTER):
+            raise TypeError(type(self).__name__ + ' received a non-pointer object')
+
+        self._ptr = c_list_ptr
+        self._size = size
+
+    def __del__(self):
+        _lib.free_gphrx_matrix_entry_list(self._ptr, self._size)
+
+    def __getitem__(self, idx):
+        if idx >= self._size:
+            raise IndexError('list index out of range')
+
+        if idx < 0:
+            idx = self._size - max(Math.abs(idx) % self._size, 1)
+
+        item = self._ptr[idx]
+        return (float(item.entry), int(item.col), int(item.row))
+
+    def __iter__(self):
+        return CsrSquareMatrixEntryListIterator(self._ptr, self._size)
+
+    def __len__(self):
+        return int(self._size)
