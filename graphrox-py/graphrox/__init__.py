@@ -332,7 +332,7 @@ class GraphEdgeList:
             raise IndexError('list index out of range')
 
         if idx < 0:
-            idx = self._size - max(Math.abs(idx) % self._size, 1)
+            idx = self._size - max(abs(idx) % self._size, 1)
 
         item = self._ptr[idx]
         return (int(item.from_edge), int(item.to_edge))
@@ -414,7 +414,7 @@ class CompressedGraph:
         return Graph(c_graph=c_graph)
 
     def threshold(self):
-        return int(_lib.gphrx_compressed_graph_threshold(self._graph))
+        return float(_lib.gphrx_compressed_graph_threshold(self._graph))
 
     def is_undirected(self):
         return bool(_lib.gphrx_compressed_graph_is_undirected(self._graph))
@@ -491,7 +491,7 @@ class CsrSquareMatrixEntryList:
             raise IndexError('list index out of range')
 
         if idx < 0:
-            idx = self._size - max(Math.abs(idx) % self._size, 1)
+            idx = self._size - max(abs(idx) % self._size, 1)
 
         item = self._ptr[idx]
         return (float(item.entry), int(item.col), int(item.row))
