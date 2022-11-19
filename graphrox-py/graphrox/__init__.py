@@ -354,6 +354,9 @@ class GraphEdgeListIterator:
         self._ptr = c_list_ptr
         self._size = size
         self._pos = 0
+        # This ref ensures the lifetime of the list is at least as long as the iterator.
+        # Without this ref, Python might call __del__ on the list and free the memory the
+        # iterator needs to access
         self._list_ref = list_ref
 
     def __next__(self):
@@ -379,9 +382,9 @@ class CompressedGraph:
     def __bytes__(self):
         size = ctypes.c_size_t()
         bytes_ptr = _lib.gphrx_compressed_graph_to_bytes(self._graph, ctypes.byref(size))
-        py_bytes = bytes(bytes_ptr[:size])
+        py_bytes = bytes(bytes_ptr[:size.value])
 
-        _lib.free_gphrx_bytes_buffer(bytes_ptr)
+        _lib.free_gphrx_bytes_buffer(bytes_ptr, size)
 
         return py_bytes
 
@@ -410,7 +413,7 @@ class CompressedGraph:
         return py_str.decode('utf-8')
 
     def decompress(self):
-        c_graph = gphrx_decompress(self._graph)
+        c_graph = _lib.gphrx_decompress(self._graph)
         return Graph(c_graph=c_graph)
 
     def threshold(self):
@@ -477,7 +480,7 @@ class CsrSquareMatrixEntryList:
     def __init__(self, c_list_ptr, size):
         if not hasattr(c_list_ptr, 'contents') or not hasattr(c_list_ptr, '_type_'):
             raise TypeError(type(self).__name__ + ' received a non-pointer object')
-        elif not isinstance(c_list_ptr.contents, _GphrxGraphEdge_c):
+        elif not isinstance(c_list_ptr.contents, _GphrxMatrixEntry_c):
             raise TypeError(type(self).__name__ + ' received a pointer to the wrong type')
 
         self._ptr = c_list_ptr
@@ -507,12 +510,15 @@ class CsrSquareMatrixEntryListIterator:
     def __init__(self, c_list_ptr, size, list_ref):
         if not hasattr(c_list_ptr, 'contents') or not hasattr(c_list_ptr, '_type_'):
             raise TypeError(type(self).__name__ + ' received a non-pointer object')
-        elif not isinstance(c_list_ptr.contents, _GphrxGraphEdge_c):
+        elif not isinstance(c_list_ptr.contents, _GphrxMatrixEntry_c):
             raise TypeError(type(self).__name__ + ' received a pointer to the wrong type')
 
         self._ptr = c_list_ptr
         self._size = size
         self._pos = 0
+        # This ref ensures the lifetime of the list is at least as long as the iterator.
+        # Without this ref, Python might call __del__ on the list and free the memory the
+        # iterator needs to access
         self._list_ref = list_ref
 
     def __next__(self):
