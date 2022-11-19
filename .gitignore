@@ -1,2 +1,6 @@
 /target
 /Cargo.lock
+*.dll
+*.so
+*.dylib
+__pycache__

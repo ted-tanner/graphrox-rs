@@ -25,16 +25,12 @@ typedef struct {
 } GphrxCompressedGraph;
 
 typedef struct {
-    const void *builder_ptr;
-} GphrxCompressedGraphBuilder;
-
-typedef struct {
     const void *matrix_ptr;
 } GphrxCsrSquareMatrix;
 
 // Buffers
 void free_gphrx_string_buffer(const char *buffer);
-void free_gphrx_bytes_buffer(const unsigned char *buffer, size_t buffer_size);
+void free_gphrx_bytes_buffer(const uint8_t *buffer, size_t buffer_size);
 
 // Graph
 void free_gphrx_graph(GphrxGraph graph);
