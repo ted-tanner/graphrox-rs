@@ -2,7 +2,7 @@ import enum
 import ctypes
 
 
-def load_gphrx_lib():
+def _load_gphrx_lib():
     from pathlib import Path
     import os
     import platform
@@ -34,7 +34,7 @@ def load_gphrx_lib():
     return ctypes.cdll.LoadLibrary(dll_path)
 
 
-_lib = load_gphrx_lib()
+_lib = _load_gphrx_lib()
 
 
 class _GphrxGraph_c(ctypes.Structure):
