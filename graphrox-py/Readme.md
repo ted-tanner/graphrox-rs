@@ -6,12 +6,12 @@ This is a Python wrapper over the C bindings for the Rust GraphRox library.
 
 To use GraphRox in your Python project, first install the package with `pip`:
 
-``` py
+``` python
 pip install graphrox
 ```
 
 Now, you can `import` the GraphRox package:
 
-``` py
+``` python
 import graphrox as gx
 ```

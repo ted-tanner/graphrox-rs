@@ -12,17 +12,17 @@ def _load_gphrx_lib():
     dll_name = None
     
     if os_name == 'Linux':
-        if 'x86_64' == machine:
+        if 'x86_64' == machine or 'amd64' == machine:
             dll_name = 'graphrox-x86_64-unknown-linux-gnu.so'
         elif 'arm' in machine or 'aarch64' in machine:
             dll_name = 'graphrox-aarch64-unknown-linux-gnu.so'
     elif os_name == 'Windows':
-        if 'x86_64' == machine:
+        if 'x86_64' == machine or 'amd64' == machine:
             dll_name = 'graphrox-x86_64-w64.dll'
         elif 'arm' in machine or 'aarch64' in machine:
             dll_name = 'graphrox-aarch64-w64.dll'
     elif os_name == 'Darwin':
-        if 'x86_64' == machine:
+        if 'x86_64' == machine or 'amd64' == machine:
             dll_name = 'graphrox-x86_64-apple-darwin.dylib'
         elif 'arm' in machine or 'aarch64' in machine:
             dll_name = 'graphrox-aarch64-apple-darwin.dylib'

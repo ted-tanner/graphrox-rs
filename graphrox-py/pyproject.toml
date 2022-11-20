@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "graphrox"
+authors = [ { name = "Tanner Davies" } ]
+version = "1.0.3"
+license = { file = "LICENSE" }
+requires-python = ">=3.6"
+dependencies = []
+description = "A network graph library for efficiently compressing and generating approximations of graphs"
+keywords = [
+         "machine learning",
+         "graph",
+         "graphs",
+         "graph approximation",
+         "compression",
+         "graph compression",
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages]
+find = {}
+
+[tool.setuptools.package-data]
+graphrox = ["*.dylib", "*.dll", "*.so"]

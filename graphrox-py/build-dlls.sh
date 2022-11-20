@@ -1,7 +1,5 @@
 cd ..
 
-
-
 # Architectures
 ############################
 # aarch64-apple-darwin

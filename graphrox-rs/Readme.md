@@ -5,12 +5,32 @@ GraphRox additionally provides a high-fidelity, lossy graph compression algorith
 
 ## Using the Library
 
-To use the library, add it to `[dependencies]` in `Cargo.toml`.
+### Rust
+
+To use the library in Rust, add it to `[dependencies]` in `Cargo.toml`.
 
 ```toml
 [dependencies]
 graphrox = "1.0"
 ```
+
+### Python
+
+GraphRox is available on PyPi, so you can install the package with:
+
+``` sh
+pip3 install graphrox
+```
+
+And then you can import it:
+
+``` python
+import graphrox as gx
+```
+
+### C
+
+After downloading and building GraphRox from source (with `cargo build --release`), a static library and a dynamic link library will each be produced in the `target/release` directory. C code can link to the GraphRox library statically using the compile library and the `gphrx.h` header from the `graphrox-c` directory, or dynamically using the DLL.
 
 ## How it works
 
