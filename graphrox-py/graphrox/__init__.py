@@ -224,11 +224,20 @@ _lib.gphrx_matrix_get_entry_list.restype = ctypes.POINTER(_GphrxMatrixEntry_c)
 
 
 class Graph:
-    def __init__(self, is_undirected=False, c_graph=None):
-        if c_graph is not None:
-            if not isinstance(c_graph, _GphrxGraph_c):
+    """A representation of a network graph that can be compressed or approximated."""
+    def __init__(self, is_undirected=False, _c_graph=None):
+        """Constructs a `Graph`. If `is_undirected` is set to `True`, the graph will be undirected.
+
+        If no parameters are passed, the resulting graph will be undirected by default.
+
+        The `__init__()` function also accepts a `_c_graph` parameter. Using this parameter is
+        discouraged. It is used by GraphRox to efficiently construct a `Graph` from C
+        structures, but it is not meant to be part of the public interface.
+        """
+        if _c_graph is not None:
+            if not isinstance(_c_graph, _GphrxGraph_c):
                 raise TypeError('provided item was of the wrong type')
-            self._graph = c_graph
+            self._graph = _c_graph
         else:
             self._graph = _lib.gphrx_new_undirected() if is_undirected else _lib.gphrx_new_directed()
         
@@ -246,6 +255,7 @@ class Graph:
 
     @staticmethod
     def from_bytes(bytes_obj):
+        """Constructs a `Graph` from the provided `bytes` object."""
         bytes_arr = (ctypes.c_ubyte * (len(bytes_obj))).from_buffer(bytearray(bytes_obj))
 
         error = ctypes.c_uint8()
@@ -254,35 +264,54 @@ class Graph:
                                         ctypes.byref(error))
 
         if error.value != _GphrxError.GPHRX_NO_ERROR.value:
-            raise ValueError(Graph.__name__() + ' could not be constructed from the provided bytes')
+            raise ValueError(
+                Graph.__name__() + ' could not be constructed from the provided bytes'
+            )
 
-        return Graph(c_graph=c_graph)
+        return Graph(_c_graph=c_graph)
 
     def duplicate(self):
+        """Creates a deep copy of the `Graph`."""
         c_graph = _lib.gphrx_duplicate(self._graph)
-        return Graph(c_graph=c_graph)
+        return Graph(_c_graph=c_graph)
 
     def matrix_string(self):
+        """Returns the adjacency matrix of the graph as a string."""
         c_str = _lib.gphrx_matrix_string(self._graph)
         py_str = ctypes.cast(c_str, ctypes.c_char_p).value
         _lib.free_gphrx_string_buffer(c_str)
         return py_str.decode('utf-8')
 
     def is_undirected(self):
+        """Returns `True` if the graph is undirected. Otherwise, returns `False`."""
         return bool(_lib.gphrx_is_undirected(self._graph))
 
     def vertex_count(self):
+        """Returns the number of vertices (or nodes) in the graph."""
         return int(_lib.gphrx_vertex_count(self._graph))
 
     def edge_count(self):
+        """Returns the number of edges between vertices in the graph.
+        
+        If the graph is undirected, the edge count will include 2 edges for every link in the
+        graph (unless the link is from a vertex to itself, in which case the count will only
+        include 1 edge for the link). This is a count of 1's in the graph's adjacency matrix.
+        """
         return int(_lib.gphrx_edge_count(self._graph))
 
     def does_edge_exist(self, from_vertex_id, to_vertex_id):
+        """Returns `True` if an edge exists between the specified vertices, or `False` otherwise."""
         return bool(_lib.gphrx_does_edge_exist(self._graph,
                                                from_vertex_id,
                                                to_vertex_id))
 
     def add_vertex(self, vertex_id, to_edges=None):
+        """Adds a vertex to the graph. Optionally creates edges to the new vertex.
+
+        `to_edges` should be a list of vertex IDs that will be linked to the new vertex. If
+        `to_edges` is `None` or an empty list, the vertex will be created but no edges will be
+        added. Will not add duplicate edges or vertices.
+        """
         if to_edges is None or len(to_edges) == 0:
             _lib.gphrx_add_vertex(self._graph, vertex_id, None, 0)
         else:
@@ -291,30 +320,89 @@ class Graph:
             _lib.gphrx_add_vertex(self._graph, vertex_id, edges, len(to_edges))
 
     def add_edge(self, from_vertex_id, to_vertex_id):
+        """Adds an edge between two vertices with the specified IDs.
+
+        `add_edge` will increase the graph's vertex count appropriately if an edge is added
+        to or from a vertex that does not yet exist in the graph.
+        """
         _lib.gphrx_add_edge(self._graph, from_vertex_id, to_vertex_id)
 
     def delete_edge(self, from_vertex_id, to_vertex_id):
+        """Removes an edge between two vertices. Does not affect the vertex count."""
         _lib.gphrx_delete_edge(self._graph, from_vertex_id, to_vertex_id)
 
     def find_avg_pool_matrix(self, block_dimension):
+        """Applies average pooling to a graph's adjacency matrix.
+
+        The result is a matrix of lower dimensionality. The adjacency matrix will be
+        partitioned into blocks with a dimension of `block_dimension` and then the matrix
+        entries within each partition will be average pooled.
+        """
         c_matrix = _lib.gphrx_find_avg_pool_matrix(self._graph, block_dimension)
         return CsrSquareMatrix(c_matrix)
 
     def approximate(self, block_dimension, threshold):
+        """Approximates a graph through average pooling.
+
+        Applies average pooling to a graph's adjacency matrix to construct an approximation of
+        the graph. The approximation will have a lower dimensionality than the original graph
+        (unless 0 is given for `block_dimension`). The adjacency matrix will be partitioned
+        into blocks with a dimension of `block_dimension` and then the matrix entries within
+        each partition will be average pooled. The given `threshold` will be applied to the
+        average pooled entries such that each entry that is greater than or equal to
+        `threshold` will become a 1 in the adjacency matrix of the resulting approximate graph.
+        Average pooled entries that are lower than `threshold` will become zeros in the
+        resulting approximate graph.
+        
+        The average pooled adjacency matrix entries will always be in the range of [0.0, 1.0]
+        inclusive. The `threshold` parameter is therefore clamped between 10^(-18) and 1.0.
+        Any `threshold` less than 10^(-18) will be treated as 10^(-18) and any `threshold`
+        greater than 1.0 will be treated as 1.0.
+        
+        If 0 is given for `block_dimension` or the graph's vertex count is less than or equal
+        to one, the graph will simply be cloned and `threshold` will be ignored.
+        
+        The graph's adjacency matrix will be padded with zeros if a block to be average pooled
+        does not fit withing the adjacency matrix.
+        """
         c_graph = _lib.gphrx_approximate(self._graph, block_dimension, threshold)
-        return Graph(c_graph=c_graph)
+        return Graph(_c_graph=c_graph)
 
     def compress(self, threshold):
+        """Compresses a graph with a lossy algorithm.
+
+        `Graph`s can be compressed into a space-efficient form. 8x8 blocks in the graph's
+        adjacency matrix are average pooled. A threshold is applied to the blocks. If a given
+        block in the average pooling matrix meets the threshold, the entire block will be
+        losslessly encoded in an unsigned 64-bit integer. If the block does not meet the
+        threshold, the entire block will be represented by a 0 in the resulting matrix. Because
+        GraphRox stores matrices as adjacency lists, 0 entries have no effect on storage size.
+        
+        The average pooled adjacency matrix entries will always be in the range of [0.0, 1.0]
+        inclusive. The `threshold` parameter is therefore clamped between 10^(-18) and 1.0.
+        Any `threshold` less than 10^(-18) will be treated as 10^(-18) and any `threshold`
+        greater than 1.0 will be treated as 1.0.
+    
+        A threshold of 0.0 is essentially a lossless compression.
+        """
         c_compressed_graph = _lib.gphrx_compress(self._graph, threshold)
         return CompressedGraph(c_compressed_graph)
 
     def edge_list(self):
+        """Generates a list of all the edges in the graph.
+
+        Each edge is represented by a tuple pair of vertex IDs. The first ID in the tuple is
+        the ID of the vertex the edge comes from and the second ID in the tuple is the ID of
+        the vertex the edge goes to. If there are edges going both directions between vertices
+        (such as when the graph is undirected), both edges will be included in the list.
+        """
         size = ctypes.c_size_t()
         arr_ptr = _lib.gphrx_get_edge_list(self._graph, ctypes.byref(size))
-        return GraphEdgeList(arr_ptr, size.value)
+        return _GraphEdgeList(arr_ptr, size.value)
 
 
-class GraphEdgeList:
+class _GraphEdgeList:
+    """A list of edges between a graph's nodes."""
     def __init__(self, c_list_ptr, size):
         if not hasattr(c_list_ptr, 'contents') or not hasattr(c_list_ptr, '_type_'):
             raise TypeError(type(self).__name__ + ' received a non-pointer object')
@@ -338,13 +426,13 @@ class GraphEdgeList:
         return (int(item.from_edge), int(item.to_edge))
 
     def __iter__(self):
-        return GraphEdgeListIterator(self._ptr, self._size, self)
+        return _GraphEdgeListIterator(self._ptr, self._size, self)
 
     def __len__(self):
         return int(self._size)
 
 
-class GraphEdgeListIterator:
+class _GraphEdgeListIterator:
     def __init__(self, c_list_ptr, size, list_ref):
         if not hasattr(c_list_ptr, 'contents') or not hasattr(c_list_ptr, '_type_'):
             raise TypeError(type(self).__name__ + ' received a non-pointer object')
@@ -370,7 +458,9 @@ class GraphEdgeListIterator:
 
 
 class CompressedGraph:
+    """A network graph in a compressed (and likely approximate) format."""
     def __init__(self, c_compressed_graph):
+        """Manually creating a `CompressedGraph` is discouraged. Use `Graph.compress()` instead."""
         if not isinstance(c_compressed_graph, _GphrxCompressedGraph_c):
             raise TypeError('provided item was of the wrong type')
         
@@ -390,6 +480,7 @@ class CompressedGraph:
 
     @staticmethod
     def from_bytes(bytes_obj):
+        """Constructs a `CompressedGraph` from the provided `bytes` object."""
         bytes_arr = (ctypes.c_ubyte * (len(bytes_obj))).from_buffer(bytearray(bytes_obj))
 
         error = ctypes.c_uint8()
@@ -398,48 +489,84 @@ class CompressedGraph:
                                                          ctypes.byref(error))
 
         if error.value != _GphrxError.GPHRX_NO_ERROR.value:
-            raise ValueError(CompressedGraph.__name__() + ' could not be constructed from the provided bytes')
+            raise ValueError(
+                CompressedGraph.__name__() + ' could not be constructed from the provided bytes'
+            )
 
         return CompressedGraph(c_graph)
 
     def duplicate(self):
+        """Creates a deep copy of the `CompressedGraph`."""
         c_graph = _lib.gphrx_compressed_graph_duplicate(self._graph)
         return CompressedGraph(c_graph)
 
     def matrix_string(self):
+        """Returns a string of the underlying matrix that represents the `CompressedGraph`.
+
+        The string that is returned does *not* represent an adjacency matrix. Each matrix entry
+        is an unsigned 64-bit integer that represents an entire 8x8 block of the original,
+        uncompressed graph's adjacency matrix.
+        """
         c_str = _lib.gphrx_compressed_graph_matrix_string(self._graph)
         py_str = ctypes.cast(c_str, ctypes.c_char_p).value
         _lib.free_gphrx_string_buffer(c_str)
         return py_str.decode('utf-8')
 
     def decompress(self):
+        """Decompresses a `CompressedGraph` into a `Graph`."""
         c_graph = _lib.gphrx_decompress(self._graph)
-        return Graph(c_graph=c_graph)
+        return Graph(_c_graph=c_graph)
 
     def threshold(self):
+        """Returns the threshold used to create the `CompressedGraph`.
+
+        Returns the threshold that was applied to the average pooling of the original graph's
+        adjacency matrix to create the CompressedGraph.
+        """
         return float(_lib.gphrx_compressed_graph_threshold(self._graph))
 
     def is_undirected(self):
+        """Returns `True` if the graph is undirected. Otherwise, returns `False`."""
         return bool(_lib.gphrx_compressed_graph_is_undirected(self._graph))
 
     def vertex_count(self):
+        """Returns the number of vertices (or nodes) in the graph."""
         return int(_lib.gphrx_compressed_graph_vertex_count(self._graph))
 
     def edge_count(self):
+        """Returns the number of edges between vertices in the graph.
+        
+        If the graph is undirected, the edge count will include 2 edges for every link in the
+        graph (unless the link is from a vertex to itself, in which case the count will only
+        include 1 edge for the link). This is a count of 1's in the graph's adjacency matrix.
+        """
         return int(_lib.gphrx_compressed_graph_edge_count(self._graph))
 
     def does_edge_exist(self, from_vertex_id, to_vertex_id):
+        """Returns `True` if an edge exists between the specified vertices, or `False` otherwise."""
         return bool(_lib.gphrx_compressed_graph_does_edge_exist(self._graph,
                                                                 from_vertex_id,
                                                                 to_vertex_id))
 
     def get_compressed_matrix_entry(self, col, row):
+        """Returns an entry in the underlying matrix that represents the `CompressedGraph`.
+
+        The underlying matrix is *not* represent an adjacency matrix. Each matrix entry is
+        an unsigned 64-bit integer that represents an entire 8x8 block of the original,
+        uncompressed graph's adjacency matrix.
+        """
         return int(_lib.gphrx_get_compressed_matrix_entry(self._graph, col, row))
-        
 
 
 class CsrSquareMatrix:
+    """A square matrix stored as an edge list in Compressed Sparse Row format."""
     def __init__(self, c_csr_matrix):
+        """Manually creating a `CsrSquareMatrix` is discouraged.
+
+        An immutable `CsrSquareMatrix` is obtained by calling `Graph.find_avg_pool_matrix()`.
+        This sole purpose of this class is to represent an average-pooled matrix. It is not
+        intended for constructing or operating on matrices.
+        """
         if not isinstance(c_csr_matrix, _GphrxCsrSquareMatrix_c):
             raise TypeError('provided item was of the wrong type')
         
@@ -452,31 +579,45 @@ class CsrSquareMatrix:
         return self.to_string()
 
     def duplicate(self):
+        """Creates a deep copy of the `CsrSquareMatrix`."""
         c_matrix = _lib.gphrx_matrix_duplicate(self._matrix)
         return CsrSquareMatrix(c_matrix)
 
     def dimension(self):
+        """Returns the dimension of the matrix as a single integer."""
         return int(_lib.gphrx_matrix_dimension(self._matrix))
 
     def entry_count(self):
+        """Returns a count of *non-zero* entries in the matrix."""
         return int(_lib.gphrx_matrix_entry_count(self._matrix))
 
     def get_entry(self, col, row):
+        """Returns the entry in the matrix at the specified column and row."""
         return float(_lib.gphrx_matrix_get_entry(self._matrix, col, row))
 
     def to_string(self, decimal_digits=2):
+        """Returns a string representation of the matrix.
+
+        `decimal_digits` specifies how many digits after the decimal will included in the
+        matrix string (default 2).
+        """
         c_str = _lib.gphrx_matrix_to_string_with_precision(self._matrix, decimal_digits)
         py_str = ctypes.cast(c_str, ctypes.c_char_p).value
         _lib.free_gphrx_string_buffer(c_str)
         return py_str.decode('utf-8')
 
     def entry_list(self):
+        """Generates a list of all the entries in the matrix.
+
+        Each entry is represented by a tuple containing the entry value, the column of the
+        entry, and the row of the entry, in that order.
+        """
         size = ctypes.c_size_t()
         arr_ptr = _lib.gphrx_matrix_get_entry_list(self._matrix, ctypes.byref(size))
-        return CsrSquareMatrixEntryList(arr_ptr, size.value)
+        return _CsrSquareMatrixEntryList(arr_ptr, size.value)
     
 
-class CsrSquareMatrixEntryList:
+class _CsrSquareMatrixEntryList:
     def __init__(self, c_list_ptr, size):
         if not hasattr(c_list_ptr, 'contents') or not hasattr(c_list_ptr, '_type_'):
             raise TypeError(type(self).__name__ + ' received a non-pointer object')
@@ -500,13 +641,13 @@ class CsrSquareMatrixEntryList:
         return (float(item.entry), int(item.col), int(item.row))
 
     def __iter__(self):
-        return CsrSquareMatrixEntryListIterator(self._ptr, self._size, self)
+        return _CsrSquareMatrixEntryListIterator(self._ptr, self._size, self)
 
     def __len__(self):
         return int(self._size)
 
 
-class CsrSquareMatrixEntryListIterator:
+class _CsrSquareMatrixEntryListIterator:
     def __init__(self, c_list_ptr, size, list_ref):
         if not hasattr(c_list_ptr, 'contents') or not hasattr(c_list_ptr, '_type_'):
             raise TypeError(type(self).__name__ + ' received a non-pointer object')
