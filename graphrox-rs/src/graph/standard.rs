@@ -379,7 +379,7 @@ impl StandardGraph {
             let new_entry = entry / block_size as f64;
 
             // This is safe because we are only changing entries in place. We are not adding
-            // or removing entris or anything that cause issues with the iteration.
+            // or removing entries or anything that might cause issues with the iteration.
             unsafe { (*matrix_ptr).set_entry(new_entry, col, row) };
         }
 
