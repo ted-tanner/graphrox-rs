@@ -360,7 +360,7 @@ impl StandardGraph {
         }
         let blocks_per_row = blocks_per_row;
 
-        let mut occurrence_matrix: CsrSquareMatrix<u64> = CsrSquareMatrix::new();
+        let mut occurrence_matrix: CsrSquareMatrix<f64> = CsrSquareMatrix::new();
 
         for (col, row) in &self.adjacency_matrix {
             let occurrence_col = col / block_dimension;
@@ -368,21 +368,19 @@ impl StandardGraph {
             occurrence_matrix.increment_entry(occurrence_col, occurrence_row);
         }
 
-        let occurrence_matrix = occurrence_matrix;
-
-        let mut avg_pool_matrix = CsrSquareMatrix::new();
+        let mut avg_pool_matrix = occurrence_matrix;
 
         // Set dimension
         avg_pool_matrix.set_entry(0.0, blocks_per_row - 1, 0);
 
         let block_size = block_dimension * block_dimension;
-        for col in 0..blocks_per_row {
-            for row in 0..blocks_per_row {
-                let entry = occurrence_matrix.get_entry(col, row) as f64 / block_size as f64;
-                if entry != 0.0 {
-                    avg_pool_matrix.set_entry(entry, col, row);
-                }
-            }
+        let matrix_ptr = &mut avg_pool_matrix as *mut CsrSquareMatrix<f64>;
+        for (entry, col, row) in &avg_pool_matrix {
+            let new_entry = entry / block_size as f64;
+
+            // This is safe because we are only changing entries in place. We are not adding
+            // or removing entris or anything that cause issues with the iteration.
+            unsafe { (*matrix_ptr).set_entry(new_entry, col, row) };
         }
 
         avg_pool_matrix

@@ -1512,7 +1512,7 @@ mod tests {
 
         unsafe {
             gphrx_add_vertex(graph, 23, ptr::null(), 0);
-            
+
             for i in 8..16 {
                 for j in 8..16 {
                     gphrx_add_edge(graph, i, j);
@@ -1532,12 +1532,12 @@ mod tests {
 
             assert_eq!(
                 size,
-                SIZE_OF_COMPRESSED_GRAPH_BYTES_HEADER
-                    + mem::size_of::<u64>() * 3 * 2 // 3 u64s per entry, 2 entries
+                SIZE_OF_COMPRESSED_GRAPH_BYTES_HEADER + mem::size_of::<u64>() * 3 * 2 // 3 u64s per entry, 2 entries
             );
 
             let mut error = 0u8;
-            let compressed_graph_from_bytes = gphrx_compressed_graph_from_bytes(bytes, size, &mut error as *mut u8);
+            let compressed_graph_from_bytes =
+                gphrx_compressed_graph_from_bytes(bytes, size, &mut error as *mut u8);
 
             assert_eq!(error, 0);
 
@@ -1545,7 +1545,10 @@ mod tests {
                 gphrx_compressed_graph_is_undirected(compressed_graph_from_bytes),
                 gphrx_is_undirected(graph)
             );
-            assert_eq!(gphrx_compressed_graph_threshold(compressed_graph_from_bytes), 0.25);
+            assert_eq!(
+                gphrx_compressed_graph_threshold(compressed_graph_from_bytes),
+                0.25
+            );
             assert_eq!(
                 gphrx_compressed_graph_vertex_count(compressed_graph_from_bytes),
                 gphrx_vertex_count(graph)
@@ -1554,7 +1557,10 @@ mod tests {
                 gphrx_compressed_graph_vertex_count(compressed_graph_from_bytes),
                 24
             );
-            assert_eq!(gphrx_compressed_graph_edge_count(compressed_graph_from_bytes), 96); // 64 + 32
+            assert_eq!(
+                gphrx_compressed_graph_edge_count(compressed_graph_from_bytes),
+                96
+            ); // 64 + 32
 
             assert_eq!(
                 gphrx_get_compressed_matrix_entry(compressed_graph_from_bytes, 0, 0),
@@ -1598,7 +1604,10 @@ mod tests {
                 gphrx_is_undirected(decompressed_graph),
                 gphrx_is_undirected(graph)
             );
-            assert_eq!(gphrx_edge_count(decompressed_graph), gphrx_edge_count(graph));
+            assert_eq!(
+                gphrx_edge_count(decompressed_graph),
+                gphrx_edge_count(graph)
+            );
             assert_eq!(
                 gphrx_vertex_count(decompressed_graph),
                 gphrx_vertex_count(graph)
@@ -1615,7 +1624,7 @@ mod tests {
                     assert_eq!(gphrx_does_edge_exist(decompressed_graph, i, j), C_TRUE);
                 }
             }
-            
+
             free_gphrx_graph(graph);
             free_gphrx_graph(decompressed_graph);
             free_gphrx_compressed_graph(compressed_graph);
@@ -1645,20 +1654,26 @@ mod tests {
     #[test]
     fn test_gphrx_matrix_duplicate() {
         let graph = gphrx_new_undirected();
-        
+
         unsafe {
             let to_1_edges = [0u64, 2, 4, 7, 3];
             let to_5_edges = [6u64, 8, 0, 1, 5, 4, 2];
             gphrx_add_vertex(graph, 1, &to_1_edges as *const _, to_1_edges.len());
             gphrx_add_vertex(graph, 5, &to_5_edges as *const _, to_5_edges.len());
-            
+
             gphrx_add_edge(graph, 7, 8);
-            
+
             let matrix = gphrx_find_avg_pool_matrix(graph, 5);
             let matrix_dup = gphrx_matrix_duplicate(matrix);
 
-            assert_eq!(gphrx_matrix_dimension(matrix_dup), gphrx_matrix_dimension(matrix));
-            assert_eq!(gphrx_matrix_entry_count(matrix_dup), gphrx_matrix_entry_count(matrix));
+            assert_eq!(
+                gphrx_matrix_dimension(matrix_dup),
+                gphrx_matrix_dimension(matrix)
+            );
+            assert_eq!(
+                gphrx_matrix_entry_count(matrix_dup),
+                gphrx_matrix_entry_count(matrix)
+            );
 
             assert_eq!(
                 (gphrx_matrix_get_entry(matrix_dup, 0, 0) * 100.0).round() / 100.0,
@@ -1676,7 +1691,7 @@ mod tests {
                 (gphrx_matrix_get_entry(matrix_dup, 1, 1) * 100.0).round() / 100.0,
                 (gphrx_matrix_get_entry(matrix, 1, 1) * 100.0).round() / 100.0,
             );
-            
+
             free_gphrx_graph(graph);
             free_gphrx_matrix(matrix);
             free_gphrx_matrix(matrix_dup);
@@ -1686,15 +1701,15 @@ mod tests {
     #[test]
     fn test_free_gphrx_matrix_entry_list() {
         let graph = gphrx_new_undirected();
-        
+
         unsafe {
             let to_1_edges = [0u64, 2, 4, 7, 3];
             let to_5_edges = [6u64, 8, 0, 1, 5, 4, 2];
             gphrx_add_vertex(graph, 1, &to_1_edges as *const _, to_1_edges.len());
             gphrx_add_vertex(graph, 5, &to_5_edges as *const _, to_5_edges.len());
-            
+
             gphrx_add_edge(graph, 7, 8);
-            
+
             let matrix = gphrx_find_avg_pool_matrix(graph, 5);
 
             let mut size = 0;
@@ -1710,15 +1725,15 @@ mod tests {
     #[test]
     fn test_gphrx_matrix_dimension() {
         let graph = gphrx_new_undirected();
-        
+
         unsafe {
             let to_1_edges = [0u64, 2, 4, 7, 3];
             let to_5_edges = [6u64, 8, 0, 1, 5, 4, 2];
             gphrx_add_vertex(graph, 1, &to_1_edges as *const _, to_1_edges.len());
             gphrx_add_vertex(graph, 5, &to_5_edges as *const _, to_5_edges.len());
-            
+
             gphrx_add_edge(graph, 7, 8);
-            
+
             let matrix = gphrx_find_avg_pool_matrix(graph, 5);
 
             assert_eq!(gphrx_matrix_dimension(matrix), 2);
@@ -1731,15 +1746,15 @@ mod tests {
     #[test]
     fn test_gphrx_matrix_entry_count() {
         let graph = gphrx_new_undirected();
-        
+
         unsafe {
             let to_1_edges = [0u64, 2, 4, 7, 3];
             let to_5_edges = [6u64, 8, 0, 1, 5, 4, 2];
             gphrx_add_vertex(graph, 1, &to_1_edges as *const _, to_1_edges.len());
             gphrx_add_vertex(graph, 5, &to_5_edges as *const _, to_5_edges.len());
-            
+
             gphrx_add_edge(graph, 7, 8);
-            
+
             let matrix = gphrx_find_avg_pool_matrix(graph, 5);
 
             assert_eq!(gphrx_matrix_entry_count(matrix), 4);
@@ -1752,15 +1767,15 @@ mod tests {
     #[test]
     fn test_gphrx_matrix_get_entry() {
         let graph = gphrx_new_undirected();
-        
+
         unsafe {
             let to_1_edges = [0u64, 2, 4, 7, 3];
             let to_5_edges = [6u64, 8, 0, 1, 5, 4, 2];
             gphrx_add_vertex(graph, 1, &to_1_edges as *const _, to_1_edges.len());
             gphrx_add_vertex(graph, 5, &to_5_edges as *const _, to_5_edges.len());
-            
+
             gphrx_add_edge(graph, 7, 8);
-            
+
             let matrix = gphrx_find_avg_pool_matrix(graph, 5);
 
             assert_eq!(gphrx_matrix_get_entry(matrix, 0, 0), 0.32);
@@ -1776,15 +1791,15 @@ mod tests {
     #[test]
     fn test_gphrx_matrix_to_string() {
         let graph = gphrx_new_undirected();
-        
+
         unsafe {
             let to_1_edges = [0u64, 2, 4, 7, 3];
             let to_5_edges = [6u64, 8, 0, 1, 5, 4, 2];
             gphrx_add_vertex(graph, 1, &to_1_edges as *const _, to_1_edges.len());
             gphrx_add_vertex(graph, 5, &to_5_edges as *const _, to_5_edges.len());
-            
+
             gphrx_add_edge(graph, 7, 8);
-            
+
             let matrix = gphrx_find_avg_pool_matrix(graph, 5);
             let matrix_string = ffi::CString::from_raw(gphrx_matrix_to_string(matrix));
             let matrix_string = matrix_string.as_c_str().to_str().unwrap();
@@ -1800,17 +1815,18 @@ mod tests {
     #[test]
     fn test_gphrx_matrix_to_string_with_precision() {
         let graph = gphrx_new_undirected();
-        
+
         unsafe {
             let to_1_edges = [0u64, 2, 4, 7, 3];
             let to_5_edges = [6u64, 8, 0, 1, 5, 4, 2];
             gphrx_add_vertex(graph, 1, &to_1_edges as *const _, to_1_edges.len());
             gphrx_add_vertex(graph, 5, &to_5_edges as *const _, to_5_edges.len());
-            
+
             gphrx_add_edge(graph, 7, 8);
-            
+
             let matrix = gphrx_find_avg_pool_matrix(graph, 5);
-            let matrix_string = ffi::CString::from_raw(gphrx_matrix_to_string_with_precision(matrix, 4));
+            let matrix_string =
+                ffi::CString::from_raw(gphrx_matrix_to_string_with_precision(matrix, 4));
             let matrix_string = matrix_string.as_c_str().to_str().unwrap();
 
             let expected = "[ 0.3200, 0.2000 ]\r\n[ 0.2000, 0.2800 ]";
@@ -1824,15 +1840,15 @@ mod tests {
     #[test]
     fn test_gphrx_matrix_get_entry_list() {
         let graph = gphrx_new_undirected();
-        
+
         unsafe {
             let to_1_edges = [0u64, 2, 4, 7, 3];
             let to_5_edges = [6u64, 8, 0, 1, 5, 4, 2];
             gphrx_add_vertex(graph, 1, &to_1_edges as *const _, to_1_edges.len());
             gphrx_add_vertex(graph, 5, &to_5_edges as *const _, to_5_edges.len());
-            
+
             gphrx_add_edge(graph, 7, 8);
-            
+
             let matrix = gphrx_find_avg_pool_matrix(graph, 5);
 
             let mut size = 0;
