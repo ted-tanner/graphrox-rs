@@ -17,4 +17,11 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Run tests
-      run: cargo test --verbose && cd graphrox-py && python3 tests.py
+      run: >
+        cargo test --verbose &&  \
+        cargo build && \
+        cp target/debug/libgraphrox.so \
+          graphrox-py/graphrox/graphrox-x86_64-unknown-linux-gnu.so && \
+        cd graphrox-py && \
+        python3 tests.py
+         
