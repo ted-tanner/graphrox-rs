@@ -1,4 +1,4 @@
-name: rust
+name: TestAll
 
 on:
   push:
@@ -17,7 +17,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Run tests
-      run: >
+      run: |
         cargo test --verbose
         cargo build
         cp target/debug/libgraphrox.so graphrox-py/graphrox/graphrox-x86_64-unknown-linux-gnu.so
