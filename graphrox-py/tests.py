@@ -2,6 +2,7 @@ import enum
 
 import importlib.util
 import sys
+import traceback
 
 # import graphrox as gx (from file so there is no conflict with pip-installed graphrox)
 spec = importlib.util.spec_from_file_location('graphrox', './graphrox/__init__.py')
@@ -659,8 +660,13 @@ if __name__ == '__main__':
     for name, func in GraphRoxTests.__dict__.items():
         if name.startswith('test_'):
             print('Running ' + name + '...', end='')
-            
-            result = func()
+
+            try:
+                result = func()
+            except:
+                print(traceback.format_exc())
+                result = GraphRoxTestResult.FAIL
+
             if result is not GraphRoxTestResult.PASS and result is not GraphRoxTestResult.FAIL:
                 result = GraphRoxTestResult.PASS
             
@@ -673,3 +679,6 @@ if __name__ == '__main__':
 
     print()
     print('Succeeded: ' + str(succeeded) + ', Failed: ' + str(failed))
+
+    if failed != 0:
+        sys.exit(101)
