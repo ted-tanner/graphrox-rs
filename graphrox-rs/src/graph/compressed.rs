@@ -2,6 +2,7 @@ use std::convert::{Into, TryFrom};
 use std::mem;
 use std::num::Wrapping;
 use std::ptr;
+use std::slice;
 
 use crate::error::GraphRoxError;
 use crate::graph::graph_traits::GraphRepresentation;
@@ -347,23 +348,22 @@ impl TryFrom<&[u8]> for CompressedGraph {
         let mut compressed_graph_builder =
             CompressedGraphBuilder::new(header.is_undirected == 1, header.vertex_count, threshold);
 
-        for pos in (HEADER_SIZE..expected_buffer_size).step_by(mem::size_of::<u64>() * 3) {
-            let entry_start = pos;
-            let entry_end = entry_start + mem::size_of::<u64>();
+        let mut pos = HEADER_SIZE;
+        let bytes_ptr = bytes.as_ptr();
 
-            let col_start = entry_end;
-            let col_end = col_start + mem::size_of::<u64>();
+        while pos < expected_buffer_size {
+            let entry_slice =
+                unsafe { slice::from_raw_parts(bytes_ptr.add(pos), mem::size_of::<u64>()) };
+            pos += mem::size_of::<u64>();
 
-            let row_start = col_end;
-            let row_end = row_start + mem::size_of::<u64>();
+            let col_slice =
+                unsafe { slice::from_raw_parts(bytes_ptr.add(pos), mem::size_of::<u64>()) };
+            pos += mem::size_of::<u64>();
 
-            let entry_slice = &bytes[entry_start..entry_end];
-            let col_slice = &bytes[col_start..col_end];
-            let row_slice = &bytes[row_start..row_end];
+            let row_slice =
+                unsafe { slice::from_raw_parts(bytes_ptr.add(pos), mem::size_of::<u64>()) };
+            pos += mem::size_of::<u64>();
 
-            // We know that the arrays will have 8 bytes each (they were created using
-            // size_of::<u64>), so we don't need to incurr the performance penalty for checking
-            // if the try_into::<[&[u8], [u8; 8]>() call succeeded
             let entry = unsafe { u64::from_be_bytes(entry_slice.try_into().unwrap_unchecked()) };
             let col = unsafe { u64::from_be_bytes(col_slice.try_into().unwrap_unchecked()) };
             let row = unsafe { u64::from_be_bytes(row_slice.try_into().unwrap_unchecked()) };
