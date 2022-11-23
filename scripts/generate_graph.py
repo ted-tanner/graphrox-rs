@@ -30,7 +30,7 @@ def graph_from_text_file(file_path, out_file_path):
     id_pairs.sort()
     id_max = id_pairs[-1][0]
 
-    id_to_new_id_map = np.full(id_max + 1, -1, dtype=int)
+    id_to_new_id_map = np.full(id_max + 2, -1, dtype=int)
 
     new_id = 0
     for id_pair in id_pairs:
@@ -52,7 +52,7 @@ def graph_from_text_file(file_path, out_file_path):
         f.write(bytes(graph))
 
 
-def verify_graph(text_file_path, gphrx_file_path):
+def validate_graph(text_file_path, gphrx_file_path):
     id_pairs = []
     with open(text_file_path, 'r') as file:
         for line in file:
@@ -97,3 +97,4 @@ def compress_gphrx_file(threshold, gphrx_file_path, out_file_path):
 
     with open(out_file_path, 'wb') as f:
         f.write(bytes(graph.compress(threshold)))
+
