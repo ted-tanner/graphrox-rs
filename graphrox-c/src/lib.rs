@@ -80,9 +80,6 @@ pub unsafe extern "C" fn free_gphrx_graph(graph: GphrxGraph) {
 #[no_mangle]
 pub unsafe extern "C" fn free_gphrx_edge_list(list: *mut GphrxGraphEdge, length: usize) {
     if length != 0 {
-        let slice = slice::from_raw_parts_mut(list, length);
-        ptr::drop_in_place(slice);
-
         let layout = alloc::Layout::array::<GphrxGraphEdge>(length).unwrap_unchecked();
         alloc::dealloc(list as *mut u8, layout);
     }
@@ -261,13 +258,14 @@ pub unsafe extern "C" fn gphrx_get_edge_list(
         .as_ref()
         .unwrap_unchecked();
 
-    let mut buffer = mem::MaybeUninit::new(Vec::with_capacity(graph.edge_count() as usize));
-    *length = graph.edge_count() as usize;
+    let layout = alloc::Layout::array::<GphrxGraphEdge>(graph.edge_count() as usize).unwrap_unchecked();
+    let buffer_ptr = alloc::alloc(layout) as *mut GphrxGraphEdge;
 
-    let buffer_ptr = {
-        (*buffer.as_mut_ptr()).set_len((*buffer.as_mut_ptr()).capacity());
-        (*buffer.as_mut_ptr()).as_mut_ptr() as *mut GphrxGraphEdge
-    };
+    if buffer_ptr.is_null() {
+        panic!("Graph edge list buffer allocation failed");
+    }
+    
+    *length = graph.edge_count() as usize;
 
     let mut pos = 0;
 
@@ -282,7 +280,7 @@ pub unsafe extern "C" fn gphrx_get_edge_list(
         pos += 1;
     }
 
-    buffer_ptr as *mut GphrxGraphEdge
+    buffer_ptr
 }
 
 #[no_mangle]
@@ -503,9 +501,6 @@ pub unsafe extern "C" fn gphrx_matrix_duplicate(
 #[no_mangle]
 pub unsafe extern "C" fn free_gphrx_matrix_entry_list(list: *mut GphrxMatrixEntry, length: usize) {
     if length != 0 {
-        let slice = slice::from_raw_parts_mut(list, length);
-        ptr::drop_in_place(slice);
-
         let layout = alloc::Layout::array::<GphrxMatrixEntry>(length).unwrap_unchecked();
         alloc::dealloc(list as *mut u8, layout);
     }
@@ -578,13 +573,14 @@ pub unsafe extern "C" fn gphrx_matrix_get_entry_list(
         .as_ref()
         .unwrap_unchecked();
 
-    let mut buffer = mem::MaybeUninit::new(Vec::with_capacity(matrix.entry_count() as usize));
-    *length = matrix.entry_count() as usize;
+    let layout = alloc::Layout::array::<GphrxMatrixEntry>(matrix.entry_count() as usize).unwrap_unchecked();
+    let buffer_ptr = alloc::alloc(layout) as *mut GphrxMatrixEntry;
 
-    let buffer_ptr = {
-        (*buffer.as_mut_ptr()).set_len((*buffer.as_mut_ptr()).capacity());
-        (*buffer.as_mut_ptr()).as_mut_ptr() as *mut GphrxMatrixEntry
-    };
+    if buffer_ptr.is_null() {
+        panic!("Matrix entry list buffer allocation failed");
+    }
+
+    *length = matrix.entry_count() as usize;
 
     let mut pos = 0;
 
