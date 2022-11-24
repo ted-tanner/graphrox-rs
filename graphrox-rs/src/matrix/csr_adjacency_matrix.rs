@@ -53,6 +53,127 @@ impl CsrAdjacencyMatrix {
             entry_count: 0,
         }
     }
+
+    /// Returns a list of non-zero entries in a column.
+    ///
+    /// ```
+    /// use graphrox::matrix::{CsrAdjacencyMatrix, MatrixRepresentation};
+    ///
+    /// let mut matrix = CsrAdjacencyMatrix::new();
+    ///
+    /// matrix.set_entry(1, 5, 2);
+    /// matrix.set_entry(1, 5, 10);
+    /// matrix.set_entry(1, 5, 11);
+    /// matrix.set_entry(1, 9, 5);
+    ///
+    /// let col_vector = matrix.get_sparse_col_vector(5);
+    ///
+    /// assert_eq!(col_vector.len(), 3);
+    /// assert!(col_vector.contains(&2));
+    /// assert!(col_vector.contains(&10));
+    /// assert!(col_vector.contains(&11));
+    /// ```
+    pub fn get_sparse_col_vector(&self, col: u64) -> Vec<u64> {
+        let row_set = match self.edges_table.get(&col) {
+            Some(s) => s,
+            None => return Vec::new(),
+        };
+
+        row_set.iter().map(|r| *r).collect()
+    }
+
+    /// Returns a list of non-zero entries in a row.
+    ///
+    /// # Performance
+    ///
+    /// Because the matrix is represented sparsely in memory by a HashMap mapping a column
+    /// index to a HashSet of row indices, obtaining the sparse row vector requires iterating
+    /// through all the columns in the matrix and checking whether the row is in the set
+    /// corresponding to each column. Obtaining the row vector is a much more computationally
+    /// expensive operation than finding a column vector.
+    ///
+    /// ```
+    /// use graphrox::matrix::{CsrAdjacencyMatrix, MatrixRepresentation};
+    ///
+    /// let mut matrix = CsrAdjacencyMatrix::new();
+    ///
+    /// matrix.set_entry(1, 2, 5);
+    /// matrix.set_entry(1, 10, 5);
+    /// matrix.set_entry(1, 11, 5);
+    /// matrix.set_entry(1, 5, 9);
+    ///
+    /// let row_vector = matrix.get_sparse_row_vector(5);
+    ///
+    /// assert_eq!(row_vector.len(), 3);
+    /// assert!(row_vector.contains(&2));
+    /// assert!(row_vector.contains(&10));
+    /// assert!(row_vector.contains(&11));
+    /// ```
+    pub fn get_sparse_row_vector(&self, row: u64) -> Vec<u64> {
+        let mut vector = Vec::new();
+
+        // This has been benchmarked with a .filter(...).map(...) and with a .filter_map(..).
+        // The raw iteration is faster.
+        for (col, row_set) in self.edges_table.iter() {
+            if row_set.contains(&row) {
+                vector.push(*col);
+            }
+        }
+
+        vector
+    }
+
+    /// Returns a count of the non-zero entries in a column.
+    ///
+    /// ```
+    /// use graphrox::matrix::{CsrAdjacencyMatrix, MatrixRepresentation};
+    ///
+    /// let mut matrix = CsrAdjacencyMatrix::new();
+    ///
+    /// matrix.set_entry(1, 5, 2);
+    /// matrix.set_entry(1, 5, 10);
+    /// matrix.set_entry(1, 5, 11);
+    /// matrix.set_entry(1, 9, 5);
+    ///
+    /// assert_eq!(matrix.col_nonzero_entry_count(5), 3);
+    /// ```
+    pub fn col_nonzero_entry_count(&self, col: u64) -> u64 {
+        let row_set = match self.edges_table.get(&col) {
+            Some(s) => s,
+            None => return 0,
+        };
+
+        row_set.iter().count() as u64
+    }
+
+    /// Returns a count of the non-zero entries in a row.
+    ///
+    /// # Performance
+    ///
+    /// Because the matrix is represented sparsely in memory by a HashMap mapping a column
+    /// index to a HashSet of row indices, counting a row's entries vector requires iterating
+    /// through all the columns in the matrix and checking whether the row is in the set
+    /// corresponding to each column. Obtaining the entry count in a row is a much more
+    /// computationally expensive operation than finding the entry count for a column.
+    ///
+    /// ```
+    /// use graphrox::matrix::{CsrAdjacencyMatrix, MatrixRepresentation};
+    ///
+    /// let mut matrix = CsrAdjacencyMatrix::new();
+    ///
+    /// matrix.set_entry(1, 2, 5);
+    /// matrix.set_entry(1, 10, 5);
+    /// matrix.set_entry(1, 11, 5);
+    /// matrix.set_entry(1, 5, 9);
+    ///
+    /// assert_eq!(matrix.row_nonzero_entry_count(5), 3);
+    /// ```
+    pub fn row_nonzero_entry_count(&self, row: u64) -> u64 {
+        self.edges_table
+            .iter()
+            .filter(|(_, row_set)| row_set.contains(&row))
+            .count() as u64
+    }
 }
 
 impl MatrixRepresentation<u8> for CsrAdjacencyMatrix {
@@ -395,6 +516,72 @@ mod tests {
         assert_eq!(matrix.get_entry(8, 5), 0);
         matrix.set_entry(1, 8, 5);
         assert_eq!(matrix.get_entry(8, 5), 1);
+    }
+
+    #[test]
+    fn test_get_sparse_col_vector() {
+        let mut matrix = CsrAdjacencyMatrix::new();
+
+        matrix.set_entry(1, 3, 0);
+        matrix.set_entry(1, 3, 8);
+        matrix.set_entry(1, 3, 10);
+        matrix.set_entry(1, 3, 42);
+        matrix.set_entry(1, 3, 100);
+        matrix.set_entry(1, 9, 3);
+
+        let vector = matrix.get_sparse_col_vector(3);
+
+        assert_eq!(vector.len(), 5);
+        assert!(vector.contains(&0));
+        assert!(vector.contains(&8));
+        assert!(vector.contains(&10));
+        assert!(vector.contains(&42));
+        assert!(vector.contains(&100));
+    }
+
+    #[test]
+    fn test_get_sparse_row_vector() {
+        let mut matrix = CsrAdjacencyMatrix::new();
+
+        matrix.set_entry(1, 0, 3);
+        matrix.set_entry(1, 8, 3);
+        matrix.set_entry(1, 10, 3);
+        matrix.set_entry(1, 42, 3);
+        matrix.set_entry(1, 100, 3);
+        matrix.set_entry(1, 3, 9);
+
+        let vector = matrix.get_sparse_row_vector(3);
+
+        assert_eq!(vector.len(), 5);
+        assert!(vector.contains(&0));
+        assert!(vector.contains(&8));
+        assert!(vector.contains(&10));
+        assert!(vector.contains(&42));
+        assert!(vector.contains(&100));
+    }
+
+    #[test]
+    fn test_col_nonzero_entry_count() {
+        let mut matrix = CsrAdjacencyMatrix::new();
+    
+        matrix.set_entry(1, 5, 2);
+        matrix.set_entry(1, 5, 10);
+        matrix.set_entry(1, 5, 11);
+        matrix.set_entry(1, 9, 5);
+        
+        assert_eq!(matrix.col_nonzero_entry_count(5), 3);
+    }
+
+    #[test]
+    fn test_row_nonzero_entry_count() {
+        let mut matrix = CsrAdjacencyMatrix::new();
+        
+        matrix.set_entry(1, 2, 5);
+        matrix.set_entry(1, 10, 5);
+        matrix.set_entry(1, 11, 5);
+        matrix.set_entry(1, 5, 9);
+        
+        assert_eq!(matrix.row_nonzero_entry_count(5), 3);
     }
 
     #[test]
