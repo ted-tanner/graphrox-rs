@@ -10,9 +10,13 @@ typedef struct {
 } GphrxGraph;
 
 typedef struct {
-    uint64_t from_edge;
-    uint64_t to_edge;
+    uint64_t from_vertex;
+    uint64_t to_vertex;
 } GphrxGraphEdge;
+
+typedef struct {
+    uint64_t vertex_id;
+} GphrxGraphVertex;
 
 typedef struct {
     double entry;
@@ -35,6 +39,7 @@ void free_gphrx_bytes_buffer(const uint8_t *buffer, size_t buffer_size);
 // Graph
 void free_gphrx_graph(GphrxGraph graph);
 void free_gphrx_edge_list(const GphrxGraphEdge *list, size_t length);
+void free_gphrx_vertex_list(const GphrxGraphVertex *list, size_t length);
 
 GphrxGraph gphrx_new_undirected();
 GphrxGraph gphrx_new_directed();
@@ -65,6 +70,15 @@ void gphrx_add_vertex(GphrxGraph graph,
                       size_t to_edges_len);
 void gphrx_add_edge(GphrxGraph graph, uint64_t from_vertex_id, uint64_t to_vertex_id);
 void gphrx_delete_edge(GphrxGraph graph, uint64_t from_vertex_id, uint64_t to_vertex_id);
+
+const GphrxGraphVertex *gphrx_get_vertex_in_edges_list(GphrxGraph graph,
+                                                       uint64_t vertex_id,
+                                                       size_t *length);
+const GphrxGraphVertex *gphrx_get_vertex_out_edges_list(GphrxGraph graph,
+                                                        uint64_t vertex_id,
+                                                        size_t *length);
+uint64_t gphrx_get_vertex_in_degree(GphrxGraph graph, uint64_t vertex_id);
+uint64_t gphrx_get_vertex_out_degree(GphrxGraph graph, uint64_t vertex_id);
 
 // CompressedGraph
 void free_gphrx_compressed_graph(const GphrxCompressedGraph graph);

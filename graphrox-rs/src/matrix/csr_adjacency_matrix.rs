@@ -79,6 +79,9 @@ impl CsrAdjacencyMatrix {
             None => return Vec::new(),
         };
 
+        // This was benchmarked to be significantly faster than calling
+        // row_set.iter().copied(), as Clippy suggests
+        #[allow(clippy::map_clone)]
         row_set.iter().map(|r| *r).collect()
     }
 
@@ -527,7 +530,7 @@ mod tests {
         matrix.set_entry(1, 3, 10);
         matrix.set_entry(1, 3, 42);
         matrix.set_entry(1, 3, 100);
-        matrix.set_entry(1, 9, 3);
+        matrix.set_entry(1, 9, 5);
 
         let vector = matrix.get_sparse_col_vector(3);
 
@@ -563,24 +566,24 @@ mod tests {
     #[test]
     fn test_col_nonzero_entry_count() {
         let mut matrix = CsrAdjacencyMatrix::new();
-    
+
         matrix.set_entry(1, 5, 2);
         matrix.set_entry(1, 5, 10);
         matrix.set_entry(1, 5, 11);
         matrix.set_entry(1, 9, 5);
-        
+
         assert_eq!(matrix.col_nonzero_entry_count(5), 3);
     }
 
     #[test]
     fn test_row_nonzero_entry_count() {
         let mut matrix = CsrAdjacencyMatrix::new();
-        
+
         matrix.set_entry(1, 2, 5);
         matrix.set_entry(1, 10, 5);
         matrix.set_entry(1, 11, 5);
         matrix.set_entry(1, 5, 9);
-        
+
         assert_eq!(matrix.row_nonzero_entry_count(5), 3);
     }
 

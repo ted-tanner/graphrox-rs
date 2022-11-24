@@ -188,15 +188,15 @@ impl StandardGraph {
         }
     }
 
-    /// Adds a vertex to a graph. If `None` is passed in as the `to_edges` parameter (or if the
+    /// Adds a vertex to a graph. If `None` is passed in as the `to_vertexs` parameter (or if the
     /// paramter is `Some` but contains an empty slice), a call to `add_vertex` will do nothing
     /// more than set the graph's vertex count to `vertex_id + 1` if `vertex_id` is greater
     /// than or equal to the graph's vertex count.
     ///
-    /// If `to_edges` is `Some` and the contained slice is not empty, an edge will be created
-    /// between `vertex_id` and each of the vertices whose IDs appear in the `to_edges` slice.
+    /// If `to_vertexs` is `Some` and the contained slice is not empty, an edge will be created
+    /// between `vertex_id` and each of the vertices whose IDs appear in the `to_vertexs` slice.
     /// If an edge already exists, it will *not* be duplicated. If a vertex whose ID appears in
-    /// `to_edges` or `vertex_id` is greater than or equal to the graph's vertex count, the
+    /// `to_vertexs` or `vertex_id` is greater than or equal to the graph's vertex count, the
     /// vertex count will be increased. For undirected graphs, each edge will be replicated
     /// such that an edge from y to x is created whenever an edge from x to y is created
     /// (unless x and y are the same edge).
@@ -219,13 +219,13 @@ impl StandardGraph {
     ///
     /// assert_eq!(graph.vertex_count(), 101);
     /// ```
-    pub fn add_vertex(&mut self, vertex_id: u64, to_edges: Option<&[u64]>) {
-        let added_edge = if let Some(to_edges) = to_edges {
-            for edge in to_edges {
+    pub fn add_vertex(&mut self, vertex_id: u64, to_vertexs: Option<&[u64]>) {
+        let added_edge = if let Some(to_vertexs) = to_vertexs {
+            for edge in to_vertexs {
                 self.add_edge(vertex_id, *edge);
             }
 
-            !to_edges.is_empty()
+            !to_vertexs.is_empty()
         } else {
             false
         };
@@ -887,8 +887,8 @@ impl<'a> IntoIterator for &'a StandardGraph {
 /// assert!(graph_edges.contains(&(0, 0)));
 /// assert!(graph_edges.contains(&(1, 2)));
 ///
-/// for (from_edge, to_edge) in &graph {
-///     println!("Edge from {} to {}", from_edge, to_edge);
+/// for (from_vertex, to_vertex) in &graph {
+///     println!("Edge from {} to {}", from_vertex, to_vertex);
 /// }
 ///
 /// /* Prints the following in arbitrary order:
@@ -1271,9 +1271,9 @@ mod tests {
         graph.add_edge(10, 5);
         graph.add_edge(11, 5);
         graph.add_edge(5, 9);
-        
+
         let in_edges = graph.get_vertex_in_edges(5);
-        
+
         assert_eq!(in_edges.len(), 3);
         assert!(in_edges.contains(&2));
         assert!(in_edges.contains(&10));
@@ -1285,9 +1285,9 @@ mod tests {
         graph.add_edge(10, 5);
         graph.add_edge(11, 5);
         graph.add_edge(5, 9);
-        
+
         let in_edges = graph.get_vertex_in_edges(5);
-        
+
         assert_eq!(in_edges.len(), 4);
         assert!(in_edges.contains(&2));
         assert!(in_edges.contains(&10));
@@ -1303,9 +1303,9 @@ mod tests {
         graph.add_edge(5, 10);
         graph.add_edge(5, 11);
         graph.add_edge(9, 5);
-        
+
         let out_edges = graph.get_vertex_out_edges(5);
-        
+
         assert_eq!(out_edges.len(), 3);
         assert!(out_edges.contains(&2));
         assert!(out_edges.contains(&10));
@@ -1317,9 +1317,9 @@ mod tests {
         graph.add_edge(5, 10);
         graph.add_edge(5, 11);
         graph.add_edge(9, 5);
-        
+
         let out_edges = graph.get_vertex_out_edges(5);
-        
+
         assert_eq!(out_edges.len(), 4);
         assert!(out_edges.contains(&2));
         assert!(out_edges.contains(&10));
@@ -1335,7 +1335,7 @@ mod tests {
         graph.add_edge(10, 5);
         graph.add_edge(11, 5);
         graph.add_edge(5, 9);
-        
+
         assert_eq!(graph.get_vertex_in_degree(5), 3);
 
         let mut graph = StandardGraph::new_undirected();
@@ -1344,7 +1344,7 @@ mod tests {
         graph.add_edge(10, 5);
         graph.add_edge(11, 5);
         graph.add_edge(5, 9);
-        
+
         assert_eq!(graph.get_vertex_in_degree(5), 4);
     }
 
@@ -1356,7 +1356,7 @@ mod tests {
         graph.add_edge(5, 10);
         graph.add_edge(5, 11);
         graph.add_edge(9, 5);
-        
+
         assert_eq!(graph.get_vertex_out_degree(5), 3);
 
         let mut graph = StandardGraph::new_undirected();
@@ -1365,7 +1365,7 @@ mod tests {
         graph.add_edge(5, 10);
         graph.add_edge(5, 11);
         graph.add_edge(9, 5);
-        
+
         assert_eq!(graph.get_vertex_out_degree(5), 4);
     }
 

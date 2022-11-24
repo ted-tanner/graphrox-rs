@@ -85,8 +85,8 @@ impl CompressedGraph {
     ///
     /// assert_eq!(decompressed_graph.vertex_count(), graph.vertex_count());
     ///
-    /// for (from_edge, to_edge) in &decompressed_graph {
-    ///     assert!(graph.does_edge_exist(from_edge, to_edge));
+    /// for (from_vertex, to_vertex) in &decompressed_graph {
+    ///     assert!(graph.does_edge_exist(from_vertex, to_vertex));
     /// }
     /// ```
     pub fn decompress(&self) -> StandardGraph {

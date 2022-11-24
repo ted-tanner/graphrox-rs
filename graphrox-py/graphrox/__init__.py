@@ -45,8 +45,8 @@ class _GphrxGraph_c(ctypes.Structure):
     
 class _GphrxGraphEdge_c(ctypes.Structure):
     _fields_ = [
-        ('from_edge', ctypes.c_uint64),
-        ('to_edge', ctypes.c_uint64),
+        ('from_vertex', ctypes.c_uint64),
+        ('to_vertex', ctypes.c_uint64),
     ]
 
 
@@ -305,19 +305,19 @@ class Graph:
                                                from_vertex_id,
                                                to_vertex_id))
 
-    def add_vertex(self, vertex_id, to_edges=None):
+    def add_vertex(self, vertex_id, to_vertexs=None):
         """Adds a vertex to the graph. Optionally creates edges to the new vertex.
 
-        `to_edges` should be a list of vertex IDs that will be linked to the new vertex. If
-        `to_edges` is `None` or an empty list, the vertex will be created but no edges will be
+        `to_vertexs` should be a list of vertex IDs that will be linked to the new vertex. If
+        `to_vertexs` is `None` or an empty list, the vertex will be created but no edges will be
         added. Will not add duplicate edges or vertices.
         """
-        if to_edges is None or len(to_edges) == 0:
+        if to_vertexs is None or len(to_vertexs) == 0:
             _lib.gphrx_add_vertex(self._graph, vertex_id, None, 0)
         else:
-            EdgesArray = ctypes.c_uint64 * len(to_edges)
-            edges = EdgesArray(*to_edges)
-            _lib.gphrx_add_vertex(self._graph, vertex_id, edges, len(to_edges))
+            EdgesArray = ctypes.c_uint64 * len(to_vertexs)
+            edges = EdgesArray(*to_vertexs)
+            _lib.gphrx_add_vertex(self._graph, vertex_id, edges, len(to_vertexs))
 
     def add_edge(self, from_vertex_id, to_vertex_id):
         """Adds an edge between two vertices with the specified IDs.
@@ -423,7 +423,7 @@ class _GraphEdgeList:
             idx = self._size - max(abs(idx) % self._size, 1)
 
         item = self._ptr[idx]
-        return (int(item.from_edge), int(item.to_edge))
+        return (int(item.from_vertex), int(item.to_vertex))
 
     def __iter__(self):
         return _GraphEdgeListIterator(self._ptr, self._size, self)
@@ -454,7 +454,7 @@ class _GraphEdgeListIterator:
             curr = self._ptr[self._pos]
             self._pos += 1
 
-            return (int(curr.from_edge), int(curr.to_edge))
+            return (int(curr.from_vertex), int(curr.to_vertex))
 
 
 class CompressedGraph:

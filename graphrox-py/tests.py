@@ -33,8 +33,8 @@ class GraphRoxTests:
 
     def test_graph_to_from_bytes():
         graph = gx.Graph(is_undirected=True)
-        graph.add_vertex(3, to_edges=[3, 6, 4, 1, 7, 0])
-        graph.add_vertex(0, to_edges=[3, 6, 4, 1, 7, 0])
+        graph.add_vertex(3, to_vertexs=[3, 6, 4, 1, 7, 0])
+        graph.add_vertex(0, to_vertexs=[3, 6, 4, 1, 7, 0])
 
         graph_bytes = bytes(graph)
         graph_from_bytes = gx.Graph.from_bytes(graph_bytes)
@@ -45,13 +45,13 @@ class GraphRoxTests:
 
         assert graph_from_bytes.does_edge_exist(0, 0)
 
-        for from_edge, to_edge in graph.edge_list():
-            assert graph_from_bytes.does_edge_exist(from_edge, to_edge)
+        for from_vertex, to_vertex in graph.edge_list():
+            assert graph_from_bytes.does_edge_exist(from_vertex, to_vertex)
 
     def test_duplicate():
         graph = gx.Graph(is_undirected=True)
-        graph.add_vertex(3, to_edges=[3, 6, 4, 1, 7, 0])
-        graph.add_vertex(0, to_edges=[3, 6, 4, 1, 7, 0])
+        graph.add_vertex(3, to_vertexs=[3, 6, 4, 1, 7, 0])
+        graph.add_vertex(0, to_vertexs=[3, 6, 4, 1, 7, 0])
 
         graph_dup = graph.duplicate()
 
@@ -61,8 +61,8 @@ class GraphRoxTests:
 
         assert graph_dup.does_edge_exist(0, 0)
 
-        for from_edge, to_edge in graph.edge_list():
-            assert graph_dup.does_edge_exist(from_edge, to_edge)
+        for from_vertex, to_vertex in graph.edge_list():
+            assert graph_dup.does_edge_exist(from_vertex, to_vertex)
 
         graph_dup.add_edge(100, 100)
 
@@ -283,20 +283,20 @@ class GraphRoxTests:
         assert len(edge_list) == graph.edge_count()
 
         for i in range(graph.edge_count()):
-            from_edge, to_edge = edge_list[i]
-            assert graph.does_edge_exist(from_edge, to_edge)
+            from_vertex, to_vertex = edge_list[i]
+            assert graph.does_edge_exist(from_vertex, to_vertex)
 
         loop_count = 0
-        for from_edge, to_edge in edge_list:
+        for from_vertex, to_vertex in edge_list:
             loop_count += 1
-            assert graph.does_edge_exist(from_edge, to_edge)
+            assert graph.does_edge_exist(from_vertex, to_vertex)
         assert loop_count == graph.edge_count()
 
         # The loop should work a second time
         loop_count = 0
-        for from_edge, to_edge in edge_list:
+        for from_vertex, to_vertex in edge_list:
             loop_count += 1
-            assert graph.does_edge_exist(from_edge, to_edge)
+            assert graph.does_edge_exist(from_vertex, to_vertex)
         assert loop_count == graph.edge_count()
 
         assert edge_list[-1] == edge_list[len(edge_list) - 1]
