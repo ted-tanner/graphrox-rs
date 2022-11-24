@@ -295,6 +295,116 @@ impl StandardGraph {
         }
     }
 
+    /// Returns a list of in-edges for a vertex.
+    ///
+    /// # Performance
+    ///
+    /// If the graph is directed, `get_vertex_in_edges()` relies on
+    /// `graphrox::matrix::CsrAdjacencyMatrix::get_sparse_row_vector()` to obtain in-edges so
+    /// `get_vertex_in_edges()` is more computationally expensive than
+    /// `get_vertex_out_edges()`. If the graph is undirected, the performance of the two
+    /// methods should be roughly the same (though `get_vertex_out_edges()` may still be
+    /// marginally faster). See the documentation for
+    /// `graphrox::matrix::CsrAdjacencyMatrix::get_sparse_row_vector()` for more information.
+    ///
+    /// ```
+    /// use graphrox::{Graph, GraphRepresentation};
+    ///
+    /// let mut graph = Graph::new_directed();
+    ///
+    /// graph.add_edge(2, 5);
+    /// graph.add_edge(10, 5);
+    /// graph.add_edge(11, 5);
+    /// graph.add_edge(5, 9);
+    ///
+    /// let in_edges = graph.get_vertex_in_edges(5);
+    ///
+    /// assert_eq!(in_edges.len(), 3);
+    /// assert!(in_edges.contains(&2));
+    /// assert!(in_edges.contains(&10));
+    /// assert!(in_edges.contains(&11));
+    /// ```
+    pub fn get_vertex_in_edges(&self, vertex_id: u64) -> Vec<u64> {
+        if self.is_undirected {
+            self.adjacency_matrix.get_sparse_col_vector(vertex_id)
+        } else {
+            self.adjacency_matrix.get_sparse_row_vector(vertex_id)
+        }
+    }
+
+    /// Returns a list of out-edges for a vertex.
+    ///
+    /// ```
+    /// use graphrox::{Graph, GraphRepresentation};
+    ///
+    /// let mut graph = Graph::new_directed();
+    ///
+    /// graph.add_edge(5, 2);
+    /// graph.add_edge(5, 10);
+    /// graph.add_edge(5, 11);
+    /// graph.add_edge(9, 5);
+    ///
+    /// let out_edges = graph.get_vertex_out_edges(5);
+    ///
+    /// assert_eq!(out_edges.len(), 3);
+    /// assert!(out_edges.contains(&2));
+    /// assert!(out_edges.contains(&10));
+    /// assert!(out_edges.contains(&11));
+    /// ```
+    pub fn get_vertex_out_edges(&self, vertex_id: u64) -> Vec<u64> {
+        self.adjacency_matrix.get_sparse_col_vector(vertex_id)
+    }
+
+    /// Returns the in-degree of a vertex.
+    ///
+    /// # Performance
+    ///
+    /// If the graph is directed, `get_vertex_in_degree()` relies on
+    /// `graphrox::matrix::CsrAdjacencyMatrix::row_nonzero_entry_count()` to obtain in-edges so
+    /// `get_vertex_in_degree()` is more computationally expensive than
+    /// `get_vertex_out_degree()`. If the graph is undirected, the performance of the two
+    /// methods should be roughly the same (though `get_vertex_out_degree()` may still be
+    /// marginally faster). See the documentation for
+    /// `graphrox::matrix::CsrAdjacencyMatrix::row_nonzero_entry_count()` for more information.
+    ///
+    /// ```
+    /// use graphrox::{Graph, GraphRepresentation};
+    ///
+    /// let mut graph = Graph::new_directed();
+    ///
+    /// graph.add_edge(2, 5);
+    /// graph.add_edge(10, 5);
+    /// graph.add_edge(11, 5);
+    /// graph.add_edge(5, 9);
+    ///
+    /// assert_eq!(graph.get_vertex_in_degree(5), 3);
+    /// ```
+    pub fn get_vertex_in_degree(&self, vertex_id: u64) -> u64 {
+        if self.is_undirected {
+            self.adjacency_matrix.col_nonzero_entry_count(vertex_id)
+        } else {
+            self.adjacency_matrix.row_nonzero_entry_count(vertex_id)
+        }
+    }
+
+    /// Returns the out-degree of a vertex.
+    ///
+    /// ```
+    /// use graphrox::{Graph, GraphRepresentation};
+    ///
+    /// let mut graph = Graph::new_directed();
+    ///
+    /// graph.add_edge(5, 2);
+    /// graph.add_edge(5, 10);
+    /// graph.add_edge(5, 11);
+    /// graph.add_edge(9, 5);
+    ///
+    /// assert_eq!(graph.get_vertex_out_degree(5), 3);
+    /// ```
+    pub fn get_vertex_out_degree(&self, vertex_id: u64) -> u64 {
+        self.adjacency_matrix.col_nonzero_entry_count(vertex_id)
+    }
+
     /// Applies average pooling to a graph's adjacency matrix to construct a matrix of lower
     /// dimensionality. The adjacency matrix will be partitioned into blocks with a dimension
     /// of `block_dimension` and then the matrix entries within each partition will be average
@@ -1151,6 +1261,112 @@ mod tests {
         assert!(!graph.does_edge_exist(8, 8));
         assert_eq!(graph.adjacency_matrix.entry_count(), 0);
         assert_eq!(graph.adjacency_matrix.dimension(), 9);
+    }
+
+    #[test]
+    fn test_get_vertex_in_edges() {
+        let mut graph = StandardGraph::new_directed();
+
+        graph.add_edge(2, 5);
+        graph.add_edge(10, 5);
+        graph.add_edge(11, 5);
+        graph.add_edge(5, 9);
+        
+        let in_edges = graph.get_vertex_in_edges(5);
+        
+        assert_eq!(in_edges.len(), 3);
+        assert!(in_edges.contains(&2));
+        assert!(in_edges.contains(&10));
+        assert!(in_edges.contains(&11));
+
+        let mut graph = StandardGraph::new_undirected();
+
+        graph.add_edge(2, 5);
+        graph.add_edge(10, 5);
+        graph.add_edge(11, 5);
+        graph.add_edge(5, 9);
+        
+        let in_edges = graph.get_vertex_in_edges(5);
+        
+        assert_eq!(in_edges.len(), 4);
+        assert!(in_edges.contains(&2));
+        assert!(in_edges.contains(&10));
+        assert!(in_edges.contains(&11));
+        assert!(in_edges.contains(&9));
+    }
+
+    #[test]
+    fn test_get_vertex_out_edges() {
+        let mut graph = StandardGraph::new_directed();
+
+        graph.add_edge(5, 2);
+        graph.add_edge(5, 10);
+        graph.add_edge(5, 11);
+        graph.add_edge(9, 5);
+        
+        let out_edges = graph.get_vertex_out_edges(5);
+        
+        assert_eq!(out_edges.len(), 3);
+        assert!(out_edges.contains(&2));
+        assert!(out_edges.contains(&10));
+        assert!(out_edges.contains(&11));
+
+        let mut graph = StandardGraph::new_undirected();
+
+        graph.add_edge(5, 2);
+        graph.add_edge(5, 10);
+        graph.add_edge(5, 11);
+        graph.add_edge(9, 5);
+        
+        let out_edges = graph.get_vertex_out_edges(5);
+        
+        assert_eq!(out_edges.len(), 4);
+        assert!(out_edges.contains(&2));
+        assert!(out_edges.contains(&10));
+        assert!(out_edges.contains(&11));
+        assert!(out_edges.contains(&9));
+    }
+
+    #[test]
+    fn test_get_vertex_in_degree() {
+        let mut graph = StandardGraph::new_directed();
+
+        graph.add_edge(2, 5);
+        graph.add_edge(10, 5);
+        graph.add_edge(11, 5);
+        graph.add_edge(5, 9);
+        
+        assert_eq!(graph.get_vertex_in_degree(5), 3);
+
+        let mut graph = StandardGraph::new_undirected();
+
+        graph.add_edge(2, 5);
+        graph.add_edge(10, 5);
+        graph.add_edge(11, 5);
+        graph.add_edge(5, 9);
+        
+        assert_eq!(graph.get_vertex_in_degree(5), 4);
+    }
+
+    #[test]
+    fn test_get_vertex_out_degree() {
+        let mut graph = StandardGraph::new_directed();
+
+        graph.add_edge(5, 2);
+        graph.add_edge(5, 10);
+        graph.add_edge(5, 11);
+        graph.add_edge(9, 5);
+        
+        assert_eq!(graph.get_vertex_out_degree(5), 3);
+
+        let mut graph = StandardGraph::new_undirected();
+
+        graph.add_edge(5, 2);
+        graph.add_edge(5, 10);
+        graph.add_edge(5, 11);
+        graph.add_edge(9, 5);
+        
+        assert_eq!(graph.get_vertex_out_degree(5), 4);
     }
 
     #[test]

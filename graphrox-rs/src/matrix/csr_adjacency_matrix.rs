@@ -151,10 +151,10 @@ impl CsrAdjacencyMatrix {
     /// # Performance
     ///
     /// Because the matrix is represented sparsely in memory by a HashMap mapping a column
-    /// index to a HashSet of row indices, counting a row's entries vector requires iterating
-    /// through all the columns in the matrix and checking whether the row is in the set
-    /// corresponding to each column. Obtaining the entry count in a row is a much more
-    /// computationally expensive operation than finding the entry count for a column.
+    /// index to a HashSet of row indices, counting a row's entries requires iterating through
+    /// all the columns in the matrix and checking whether the row is in the set corresponding
+    /// to each column. Obtaining the entry count in a row is a much more computationally
+    /// expensive operation than finding the entry count for a column.
     ///
     /// ```
     /// use graphrox::matrix::{CsrAdjacencyMatrix, MatrixRepresentation};
