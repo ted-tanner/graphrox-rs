@@ -50,6 +50,12 @@ class _GphrxGraphEdge_c(ctypes.Structure):
     ]
 
 
+class _GphrxGraphVertex_c(ctypes.Structure):
+    _fields_ = [
+        ('vertex_id', ctypes.c_uint64),
+    ]
+
+
 class _GphrxMatrixEntry_c(ctypes.Structure):
     _fields_ = [
         ('entry', ctypes.c_double),
@@ -88,6 +94,9 @@ _lib.free_gphrx_graph.restype = None
 
 _lib.free_gphrx_edge_list.argtypes = (ctypes.POINTER(_GphrxGraphEdge_c), ctypes.c_size_t)
 _lib.free_gphrx_edge_list.restype = None
+
+_lib.free_gphrx_vertex_list.argtypes = (ctypes.POINTER(_GphrxGraphVertex_c), ctypes.c_size_t)
+_lib.free_gphrx_vertex_list.restype = None
 
 _lib.gphrx_new_undirected.argtypes = None
 _lib.gphrx_new_undirected.restype = _GphrxGraph_c
@@ -144,6 +153,22 @@ _lib.gphrx_add_edge.restype = None
 
 _lib.gphrx_delete_edge.argtypes = (_GphrxGraph_c, ctypes.c_uint64, ctypes.c_uint64)
 _lib.gphrx_delete_edge.restype = None
+
+_lib.gphrx_get_vertex_in_edges_list.argtypes = (_GphrxGraph_c,
+                                                ctypes.c_uint64,
+                                                ctypes.POINTER(ctypes.c_size_t))
+_lib.gphrx_get_vertex_in_edges_list.restype = ctypes.POINTER(_GphrxGraphVertex_c)
+
+_lib.gphrx_get_vertex_out_edges_list.argtypes = (_GphrxGraph_c,
+                                                 ctypes.c_uint64,
+                                                 ctypes.POINTER(ctypes.c_size_t))
+_lib.gphrx_get_vertex_out_edges_list.restype = ctypes.POINTER(_GphrxGraphVertex_c)
+
+_lib.gphrx_get_vertex_in_degree.argtypes = (_GphrxGraph_c, ctypes.c_uint64)
+_lib.gphrx_get_vertex_in_degree.restype = ctypes.c_uint64
+
+_lib.gphrx_get_vertex_out_degree.argtypes = (_GphrxGraph_c, ctypes.c_uint64)
+_lib.gphrx_get_vertex_out_degree.restype = ctypes.c_uint64
 
 # CompressedGraph
 _lib.free_gphrx_compressed_graph.argtypes = [_GphrxCompressedGraph_c]
@@ -400,6 +425,36 @@ class Graph:
         arr_ptr = _lib.gphrx_get_edge_list(self._graph, ctypes.byref(size))
         return _GraphEdgeList(arr_ptr, size.value)
 
+    def vertex_in_edges(self, vertex_id):
+        """Generates a list of in-edges for the given vertex.
+
+        Because of how the graph is represented in memory, calling `vertex_in_edges()` is more
+        computationally expensive that calling `vertex_out_edges()`, but only if the graph is
+        directed rather than undirected.
+        """
+        size = ctypes.c_size_t()
+        arr_ptr = _lib.gphrx_get_vertex_in_edges_list(self._graph, vertex_id, ctypes.byref(size))
+        return _GraphVertexList(arr_ptr, size.value)
+
+    def vertex_out_edges(self, vertex_id):
+        """Generates a list of out-edges for the given vertex."""
+        size = ctypes.c_size_t()
+        arr_ptr = _lib.gphrx_get_vertex_out_edges_list(self._graph, vertex_id, ctypes.byref(size))
+        return _GraphVertexList(arr_ptr, size.value)
+
+    def vertex_in_degree(self, vertex_id):
+        """Returns the in-degree for the given vertex.
+
+        Because of how the graph is represented in memory, calling `vertex_in_degree()` is more
+        computationally expensive that calling `vertex_out_degree()`, but only if the graph is
+        directed rather than undirected.
+        """
+        return _lib.gphrx_get_vertex_in_degree(self._graph, vertex_id)
+
+    def vertex_out_degree(self, vertex_id):
+        """Returns the out-degree for the given vertex."""
+        return _lib.gphrx_get_vertex_out_degree(self._graph, vertex_id)
+
 
 class _GraphEdgeList:
     """A list of edges between a graph's nodes."""
@@ -455,6 +510,62 @@ class _GraphEdgeListIterator:
             self._pos += 1
 
             return (int(curr.from_vertex), int(curr.to_vertex))
+
+        
+class _GraphVertexList:
+    """A list of graph vertices"""
+    def __init__(self, c_list_ptr, size):
+        if not hasattr(c_list_ptr, 'contents') or not hasattr(c_list_ptr, '_type_'):
+            raise TypeError(type(self).__name__ + ' received a non-pointer object')
+        elif not isinstance(c_list_ptr.contents, _GphrxGraphVertex_c):
+            raise TypeError(type(self).__name__ + ' received a pointer to the wrong type')
+
+        self._ptr = c_list_ptr
+        self._size = size
+
+    def __del__(self):
+        _lib.free_gphrx_vertex_list(self._ptr, self._size)
+
+    def __getitem__(self, idx):
+        if idx >= self._size:
+            raise IndexError('list index out of range')
+
+        if idx < 0:
+            idx = self._size - max(abs(idx) % self._size, 1)
+
+        item = self._ptr[idx]
+        return int(item.vertex_id)
+
+    def __iter__(self):
+        return _GraphVertexListIterator(self._ptr, self._size, self)
+
+    def __len__(self):
+        return int(self._size)
+
+
+class _GraphVertexListIterator:
+    def __init__(self, c_list_ptr, size, list_ref):
+        if not hasattr(c_list_ptr, 'contents') or not hasattr(c_list_ptr, '_type_'):
+            raise TypeError(type(self).__name__ + ' received a non-pointer object')
+        elif not isinstance(c_list_ptr.contents, _GphrxGraphVertex_c):
+            raise TypeError(type(self).__name__ + ' received a pointer to the wrong type')
+
+        self._ptr = c_list_ptr
+        self._size = size
+        self._pos = 0
+        # This ref ensures the lifetime of the list is at least as long as the iterator.
+        # Without this ref, Python might call __del__ on the list and free the memory the
+        # iterator needs to access
+        self._list_ref = list_ref
+
+    def __next__(self):
+        if self._pos == self._size:
+            raise StopIteration
+        else:            
+            curr = self._ptr[self._pos]
+            self._pos += 1
+
+            return int(curr.vertex_id)
 
 
 class CompressedGraph:

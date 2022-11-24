@@ -262,7 +262,7 @@ class GraphRoxTests:
 
         assert compressed_graph.get_compressed_matrix_entry(0, 0) == 0x00000000ffffffff
         assert compressed_graph.get_compressed_matrix_entry(1, 1) == 0xffffffffffffffff
-
+        
     def test_edge_list():
         graph = gx.Graph(is_undirected=True)
 
@@ -309,6 +309,156 @@ class GraphRoxTests:
         
         try:
             edge_list[len(edge_list)]
+        except IndexError:
+            did_fail = True
+            
+        assert did_fail
+
+    def test_vertex_in_edges():
+        graph = gx.Graph(is_undirected=False)
+
+        graph.add_edge(2, 5)
+        graph.add_edge(10, 5)
+        graph.add_edge(11, 5)
+        graph.add_edge(5, 9)
+
+        in_edges = graph.vertex_in_edges(5)
+
+        assert len(in_edges) == 3
+        assert 2 in in_edges
+        assert 10 in in_edges
+        assert 11 in in_edges
+        assert 9 not in in_edges
+
+        graph = gx.Graph(is_undirected=True)
+
+        graph.add_edge(2, 5)
+        graph.add_edge(10, 5)
+        graph.add_edge(11, 5)
+        graph.add_edge(5, 9)
+
+        in_edges = graph.vertex_in_edges(5)
+
+        assert len(in_edges) == 4
+        assert 2 in in_edges
+        assert 10 in in_edges
+        assert 11 in in_edges
+        assert 9 in in_edges
+
+    def test_vertex_out_edges():
+        graph = gx.Graph(is_undirected=False)
+
+        graph.add_edge(5, 2)
+        graph.add_edge(5, 10)
+        graph.add_edge(5, 11)
+        graph.add_edge(9, 5)
+
+        out_edges = graph.vertex_out_edges(5)
+
+        assert len(out_edges) == 3
+        assert 2 in out_edges
+        assert 10 in out_edges
+        assert 11 in out_edges
+        assert 9 not in out_edges
+
+        graph = gx.Graph(is_undirected=True)
+
+        graph.add_edge(5, 2)
+        graph.add_edge(5, 10)
+        graph.add_edge(5, 11)
+        graph.add_edge(9, 5)
+
+        out_edges = graph.vertex_out_edges(5)
+
+        assert len(out_edges) == 4
+        assert 2 in out_edges
+        assert 10 in out_edges
+        assert 11 in out_edges
+        assert 9 in out_edges
+
+    def test_vertex_in_degree():
+        graph = gx.Graph(is_undirected=False)
+
+        graph.add_edge(2, 5)
+        graph.add_edge(10, 5)
+        graph.add_edge(11, 5)
+        graph.add_edge(5, 9)
+
+        assert graph.vertex_in_degree(5) == 3
+
+        graph = gx.Graph(is_undirected=True)
+
+        graph.add_edge(2, 5)
+        graph.add_edge(10, 5)
+        graph.add_edge(11, 5)
+        graph.add_edge(5, 9)
+
+        assert graph.vertex_in_degree(5) == 4
+
+    def test_vertex_out_degree():
+        graph = gx.Graph(is_undirected=False)
+
+        graph.add_edge(5, 2)
+        graph.add_edge(5, 10)
+        graph.add_edge(5, 11)
+        graph.add_edge(9, 5)
+
+        assert graph.vertex_out_degree(5) == 3
+
+        graph = gx.Graph(is_undirected=True)
+
+        graph.add_edge(5, 2)
+        graph.add_edge(5, 10)
+        graph.add_edge(5, 11)
+        graph.add_edge(9, 5)
+
+        assert graph.vertex_out_degree(5) == 4
+
+    def test_vertex_list():
+        graph = gx.Graph(is_undirected=True)
+
+        graph.add_edge(2, 5)
+        graph.add_edge(10, 5)
+        graph.add_edge(11, 5)
+        graph.add_edge(5, 9)
+        graph.add_edge(7, 6)
+
+        vertex_list = graph.vertex_in_edges(5)
+
+        assert len(vertex_list) == 4
+        
+        assert 2 in vertex_list
+        assert 10 in vertex_list
+        assert 11 in vertex_list
+        assert 9 in vertex_list
+        assert 6 not in vertex_list
+        assert 7 not in vertex_list
+
+        expected = [2, 9, 10, 11]
+        loop_count = 0
+        for vertex_id in vertex_list:
+            loop_count += 1
+            assert vertex_id in expected
+        assert loop_count == len(expected)
+
+        # The loop should work a second time
+        loop_count = 0
+        loop_count = 0
+        for vertex_id in vertex_list:
+            loop_count += 1
+            assert vertex_id in expected
+        assert loop_count == len(expected)
+
+        assert vertex_list[-1] == vertex_list[len(vertex_list) - 1]
+        assert vertex_list[-2] == vertex_list[len(vertex_list) - 2]
+        assert vertex_list[-(len(vertex_list))] == vertex_list[len(vertex_list) - 1]
+        assert vertex_list[-(len(vertex_list) + 1)] == vertex_list[len(vertex_list) - 1]
+        assert vertex_list[-(len(vertex_list) * 7 + 1)] == vertex_list[len(vertex_list) - 1]
+
+        did_fail = False
+        
+        try:
+            vertex_list[len(vertex_list)]
         except IndexError:
             did_fail = True
             
