@@ -7,7 +7,7 @@ members = [
 
 [workspace.package]
 authors = ["Tanner Davies"]
-version = "1.0.4"
+version = "1.1.0"
 edition = "2021"
 description = "A graph library for graph compression and fast processing of graph approximations"
 license = "MIT"
