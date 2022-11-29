@@ -60,9 +60,9 @@ pub(crate) mod graph_traits {
         /// graph.add_edge(1, 1);
         ///
         /// let expected = "[ 0, 1 ]\r\n[ 0, 1 ]";
-        /// assert_eq!(graph.matrix_representation_string().as_str(), expected);
+        /// assert_eq!(graph.matrix_string().as_str(), expected);
         /// ```
-        fn matrix_representation_string(&self) -> String;
+        fn matrix_string(&self) -> String;
 
         /// Returns `true` if the specified edge exists in the graph.
         ///

@@ -5,9 +5,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "graphrox"
 authors = [ { name = "Tanner Davies" } ]
-version = "1.1.0"
+version = "1.2.0"
 license = { file = "LICENSE" }
-requires-python = ">=3.6"
+requires-python = ">=3.4"
 dependencies = []
 description = "A network graph library for efficiently compressing and generating approximations of graphs"
 keywords = [

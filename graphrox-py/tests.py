@@ -236,7 +236,7 @@ class GraphRoxTests:
 
     def test_compress():
         graph = gx.Graph(is_undirected=True)
-        compressed_graph = graph.compress(0.2)
+        compressed_graph = graph.compress(6)
         assert compressed_graph.is_undirected() == graph.is_undirected()
         
         graph = gx.Graph(is_undirected=False)
@@ -253,12 +253,13 @@ class GraphRoxTests:
         graph.add_edge(22, 18)
         graph.add_edge(15, 18)
 
-        compressed_graph = graph.compress(0.2)
+        compressed_graph = graph.compress(8)
 
         assert compressed_graph.is_undirected() == graph.is_undirected()
         assert compressed_graph.vertex_count() == graph.vertex_count()
+
         assert compressed_graph.edge_count() == 96  # 64 + 32
-        assert compressed_graph.threshold() == 0.2
+        assert compressed_graph.compression_level() == 8
 
         assert compressed_graph.get_compressed_matrix_entry(0, 0) == 0x00000000ffffffff
         assert compressed_graph.get_compressed_matrix_entry(1, 1) == 0xffffffffffffffff
@@ -476,7 +477,7 @@ class GraphRoxTests:
             for j in range(0, 4):
                 graph.add_edge(i, j)
 
-        compressed_graph = graph.compress(0.2)
+        compressed_graph = graph.compress(9)
 
         compressed_graph_bytes = bytes(compressed_graph)
         compressed_graph_dup = gx.CompressedGraph.from_bytes(compressed_graph_bytes)
@@ -484,7 +485,7 @@ class GraphRoxTests:
         assert compressed_graph_dup.is_undirected() == compressed_graph.is_undirected()
         assert compressed_graph_dup.vertex_count() == compressed_graph.vertex_count()
         assert compressed_graph_dup.edge_count() == compressed_graph.edge_count()
-        assert compressed_graph_dup.threshold() == compressed_graph.threshold()
+        assert compressed_graph_dup.compression_level() == compressed_graph.compression_level()
 
         assert compressed_graph_dup.get_compressed_matrix_entry(0, 0) == 0x00000000ffffffff
         assert compressed_graph_dup.get_compressed_matrix_entry(1, 1) == 0xffffffffffffffff
@@ -501,13 +502,13 @@ class GraphRoxTests:
             for j in range(0, 4):
                 graph.add_edge(i, j)
 
-        compressed_graph = graph.compress(0.2)
+        compressed_graph = graph.compress(4)
         compressed_graph_dup = compressed_graph.duplicate()
 
         assert compressed_graph_dup.is_undirected() == compressed_graph.is_undirected()
         assert compressed_graph_dup.vertex_count() == compressed_graph.vertex_count()
         assert compressed_graph_dup.edge_count() == compressed_graph.edge_count()
-        assert compressed_graph_dup.threshold() == compressed_graph.threshold()
+        assert compressed_graph_dup.compression_level() == compressed_graph.compression_level()
 
         assert compressed_graph_dup.get_compressed_matrix_entry(0, 0) == 0x00000000ffffffff
         assert compressed_graph_dup.get_compressed_matrix_entry(1, 1) == 0xffffffffffffffff
@@ -523,7 +524,7 @@ class GraphRoxTests:
             for j in range(0, 4):
                 graph.add_edge(i, j)
 
-        compressed_graph = graph.compress(0.2)
+        compressed_graph = graph.compress(3)
         expected = '[                    0,           4294967295 ]\r\n[  1085102592571150095, 18446744073709551615 ]'
         
         assert compressed_graph.matrix_string() == expected
@@ -539,7 +540,7 @@ class GraphRoxTests:
             for j in range(0, 4):
                 graph.add_edge(i, j)
 
-        compressed_graph = graph.compress(0.2)
+        compressed_graph = graph.compress(11)
         decompressed_graph = compressed_graph.decompress()
 
         assert graph.is_undirected() == decompressed_graph.is_undirected()
@@ -555,7 +556,7 @@ class GraphRoxTests:
                 assert decompressed_graph.does_edge_exist(i, j)
                 assert decompressed_graph.does_edge_exist(j, i)
 
-    def test_compressed_graph_threshold():
+    def test_compressed_graph_compression_level():
         graph = gx.Graph(is_undirected=True)
 
         for i in range(8, 16):
@@ -566,20 +567,20 @@ class GraphRoxTests:
             for j in range(0, 4):
                 graph.add_edge(i, j)
 
-        compressed_graph = graph.compress(0.2)
-        assert compressed_graph.threshold() == 0.2
+        compressed_graph = graph.compress(10)
+        assert compressed_graph.compression_level() == 10
 
         graph = gx.Graph(is_undirected=False)
-        compressed_graph = graph.compress(0.421)
-        assert compressed_graph.threshold() == 0.421
+        compressed_graph = graph.compress(42)
+        assert compressed_graph.compression_level() == 42
 
     def test_compressed_graph_is_undirected():
         graph = gx.Graph(is_undirected=True)
-        compressed_graph = graph.compress(0.11)
+        compressed_graph = graph.compress(8)
         assert compressed_graph.is_undirected()
 
         graph = gx.Graph(is_undirected=False)
-        compressed_graph = graph.compress(0.42)
+        compressed_graph = graph.compress(42)
         assert not compressed_graph.is_undirected()
 
     def test_compressed_graph_vertex_count():
@@ -594,11 +595,11 @@ class GraphRoxTests:
             for j in range(0, 4):
                 graph.add_edge(i, j)
 
-        compressed_graph = graph.compress(0.1)
+        compressed_graph = graph.compress(2)
         assert compressed_graph.vertex_count() == 24
 
         graph = gx.Graph(is_undirected=False)
-        compressed_graph = graph.compress(0.421)
+        compressed_graph = graph.compress(1)
         assert compressed_graph.vertex_count() == 0
 
     def test_compressed_graph_edge_count():
@@ -613,11 +614,11 @@ class GraphRoxTests:
             for j in range(0, 4):
                 graph.add_edge(i, j)
 
-        compressed_graph = graph.compress(0.1)
+        compressed_graph = graph.compress(18)
         assert compressed_graph.edge_count() == graph.edge_count()
 
         graph = gx.Graph(is_undirected=False)
-        compressed_graph = graph.compress(0.421)
+        compressed_graph = graph.compress(43)
         assert compressed_graph.edge_count() == graph.edge_count()
 
     def test_compressed_graph_does_edge_exist():
@@ -631,7 +632,7 @@ class GraphRoxTests:
             for j in range(0, 4):
                 graph.add_edge(i, j)
 
-        compressed_graph = graph.compress(0.2)
+        compressed_graph = graph.compress(16)
 
         for i in range(8, 16):
             for j in range(8, 16):
@@ -653,7 +654,7 @@ class GraphRoxTests:
             for j in range(0, 4):
                 graph.add_edge(i, j)
 
-        compressed_graph = graph.compress(0.2)
+        compressed_graph = graph.compress(15)
 
         assert compressed_graph.get_compressed_matrix_entry(0, 0) == 0x00000000ffffffff
         assert compressed_graph.get_compressed_matrix_entry(1, 1) == 0xffffffffffffffff

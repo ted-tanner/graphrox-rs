@@ -428,7 +428,7 @@ impl StandardGraph {
     ///
     /// let avg_pool_matrix = graph.find_avg_pool_matrix(2);
     ///
-    /// println!("{}", graph.matrix_representation_string());
+    /// println!("{}", graph.matrix_string());
     /// println!();
     /// println!("{}", avg_pool_matrix.to_string());
     ///
@@ -533,9 +533,9 @@ impl StandardGraph {
     ///
     /// let approx_graph = graph.approximate(2, 0.5);
     ///
-    /// println!("{}", graph.matrix_representation_string());
+    /// println!("{}", graph.matrix_string());
     /// println!();
-    /// println!("{}", approx_graph.matrix_representation_string());
+    /// println!("{}", approx_graph.matrix_string());
     ///
     /// /* Ouput:
     ///
@@ -603,12 +603,13 @@ impl StandardGraph {
     /// threshold, the entire block will be represented by a 0 in the resulting matrix. Because
     /// GraphRox stores matrices as adjacency lists, 0 entries have no effect on storage size.
     ///
-    /// The average pooled adjacency matrix entries will always be in the range of [0.0, 1.0]
-    /// inclusive. The `threshold` parameter is therefore clamped between 10^(-18) and 1.0.
-    /// Any `threshold` less than 10^(-18) will be treated as 10^(-18) and any `threshold`
-    /// greater than 1.0 will be treated as 1.0.
+    /// `compression_level` is divided by 64 to obtain the threshold. Thus, `compression_level` is
+    /// equal to the number of entries in an 8x8 block of the adjacency matrix that must be ones in
+    /// order for the block to be losslessly encoded in the CompressedGraph. A CompressedGraph is
+    /// not necessarily approximated, though, because the `compression_level` may be one.
+    /// `compression_level` will be clamped to a number between 1 and 64 inclusive.
     ///
-    /// A threshold of 0.0 is essentially a lossless compression.
+    /// A `compression_level` of 1 is essentially a lossless compression.
     ///
     /// ```
     /// use graphrox::{Graph, GraphRepresentation};
@@ -631,7 +632,7 @@ impl StandardGraph {
     /// graph.add_edge(22, 18);
     /// graph.add_edge(15, 18);
     ///
-    /// let compressed_graph = graph.compress(0.2);
+    /// let compressed_graph = graph.compress(4);
     ///
     /// assert_eq!(compressed_graph.vertex_count(), 24);
     /// assert_eq!(compressed_graph.edge_count(), 96); // 64 + 32
@@ -642,11 +643,15 @@ impl StandardGraph {
     /// // Because the entire 8x8 block was filled, the block is represented with u64::MAX
     /// assert_eq!(compressed_graph.get_compressed_matrix_entry(1, 1), u64::MAX);
     /// ```
-    pub fn compress(&self, threshold: f64) -> CompressedGraph {
-        let threshold = util::clamp_threshold(threshold);
+    pub fn compress(&self, compression_level: u8) -> CompressedGraph {
+        let compression_level = util::clamp_compression_level(compression_level);
+
+        // Subract a very small number to ensure the floating-point imprecision errs on the
+        // side of being slightly less than the 1/64 cut-off
+        let threshold = compression_level as f64 / 64.0 - 0.00001;
 
         let mut builder =
-            CompressedGraphBuilder::new(self.is_undirected, self.vertex_count(), threshold);
+            CompressedGraphBuilder::new(self.is_undirected, self.vertex_count(), compression_level);
 
         let avg_pool_matrix = self.find_avg_pool_matrix(COMPRESSION_BLOCK_DIMENSION);
         for (entry, col, row) in &avg_pool_matrix {
@@ -697,7 +702,7 @@ impl GraphRepresentation for StandardGraph {
         self.adjacency_matrix.entry_count()
     }
 
-    fn matrix_representation_string(&self) -> String {
+    fn matrix_string(&self) -> String {
         self.adjacency_matrix.to_string()
     }
 
@@ -1029,7 +1034,7 @@ mod tests {
     }
 
     #[test]
-    fn test_standard_graph_matrix_representation_string() {
+    fn test_standard_graph_matrix_string() {
         let mut graph = StandardGraph::new_directed();
         graph.add_edge(1, 2);
         graph.add_edge(1, 0);
@@ -1037,12 +1042,12 @@ mod tests {
         graph.add_edge(2, 2);
 
         let expected = "[ 0, 1, 0 ]\r\n[ 0, 0, 0 ]\r\n[ 1, 1, 1 ]";
-        assert_eq!(expected, graph.matrix_representation_string());
+        assert_eq!(expected, graph.matrix_string());
 
         graph.add_vertex(3, None);
 
         let expected = "[ 0, 1, 0, 0 ]\r\n[ 0, 0, 0, 0 ]\r\n[ 1, 1, 1, 0 ]\r\n[ 0, 0, 0, 0 ]";
-        assert_eq!(expected, graph.matrix_representation_string());
+        assert_eq!(expected, graph.matrix_string());
     }
 
     #[test]
@@ -1664,10 +1669,10 @@ mod tests {
         graph.add_edge(22, 18);
         graph.add_edge(15, 18);
 
-        let compressed_graph = graph.compress(0.2);
+        let compressed_graph = graph.compress(8);
 
         assert_eq!(compressed_graph.is_undirected(), graph.is_undirected());
-        assert_eq!(compressed_graph.threshold(), 0.2);
+        assert_eq!(compressed_graph.compression_level(), 8);
         assert_eq!(compressed_graph.vertex_count(), graph.vertex_count());
         assert_eq!(compressed_graph.vertex_count(), 24);
         assert_eq!(compressed_graph.edge_count(), 96); // 64 + 32
@@ -1678,25 +1683,65 @@ mod tests {
         );
         assert_eq!(compressed_graph.get_compressed_matrix_entry(1, 1), u64::MAX);
 
-        let compressed_graph = graph.compress(0.6);
+        let compressed_graph = graph.compress(4);
 
         assert_eq!(compressed_graph.is_undirected(), graph.is_undirected());
-        assert_eq!(compressed_graph.threshold(), 0.6);
+        assert_eq!(compressed_graph.compression_level(), 4);
+        assert_eq!(compressed_graph.vertex_count(), graph.vertex_count());
+        assert_eq!(compressed_graph.vertex_count(), 24);
+        assert_eq!(compressed_graph.edge_count(), 96); // 64 + 32
+
+        assert_eq!(
+            compressed_graph.get_compressed_matrix_entry(0, 0),
+            0x00000000ffffffffu64
+        );
+        assert_eq!(compressed_graph.get_compressed_matrix_entry(1, 1), u64::MAX);
+
+        let compressed_graph = graph.compress(38);
+
+        assert_eq!(compressed_graph.is_undirected(), graph.is_undirected());
+        assert_eq!(compressed_graph.compression_level(), 38);
         assert_eq!(compressed_graph.vertex_count(), graph.vertex_count());
         assert_eq!(compressed_graph.vertex_count(), 24);
         assert_eq!(compressed_graph.edge_count(), 64);
 
         assert_eq!(compressed_graph.get_compressed_matrix_entry(1, 1), u64::MAX);
 
-        let compressed_graph = graph.compress(1.0);
+        let compressed_graph = graph.compress(64);
 
         assert_eq!(compressed_graph.is_undirected(), graph.is_undirected());
-        assert_eq!(compressed_graph.threshold(), 1.0);
+        assert_eq!(compressed_graph.compression_level(), 64);
         assert_eq!(compressed_graph.vertex_count(), graph.vertex_count());
         assert_eq!(compressed_graph.vertex_count(), 24);
         assert_eq!(compressed_graph.edge_count(), 64);
 
         assert_eq!(compressed_graph.get_compressed_matrix_entry(1, 1), u64::MAX);
+
+        let compressed_graph = graph.compress(233);
+
+        assert_eq!(compressed_graph.is_undirected(), graph.is_undirected());
+        assert_eq!(compressed_graph.compression_level(), 64);
+        assert_eq!(compressed_graph.vertex_count(), graph.vertex_count());
+        assert_eq!(compressed_graph.vertex_count(), 24);
+        assert_eq!(compressed_graph.edge_count(), 64);
+
+        assert_eq!(compressed_graph.get_compressed_matrix_entry(1, 1), u64::MAX);
+
+        let compressed_graph = graph.compress(0);
+
+        assert_eq!(compressed_graph.is_undirected(), graph.is_undirected());
+        assert_eq!(compressed_graph.compression_level(), 1);
+        assert_eq!(compressed_graph.vertex_count(), graph.vertex_count());
+        assert_eq!(compressed_graph.vertex_count(), 24);
+        assert_eq!(compressed_graph.edge_count(), graph.edge_count());
+
+        assert_eq!(compressed_graph.get_compressed_matrix_entry(1, 1), u64::MAX);
+        assert!(compressed_graph.does_edge_exist(22, 18));
+        assert!(compressed_graph.does_edge_exist(15, 18));
+
+        graph.delete_edge(10, 10);
+        let compressed_graph = graph.compress(64);
+        assert_eq!(compressed_graph.edge_count(), 0);
 
         let mut graph = StandardGraph::new_undirected();
         graph.add_vertex(23, None);
@@ -1716,10 +1761,10 @@ mod tests {
         graph.add_edge(22, 18);
         graph.add_edge(15, 18);
 
-        let compressed_graph = graph.compress(0.5);
+        let compressed_graph = graph.compress(32);
 
         assert_eq!(compressed_graph.is_undirected(), graph.is_undirected());
-        assert_eq!(compressed_graph.threshold(), 0.5);
+        assert_eq!(compressed_graph.compression_level(), 32);
         assert_eq!(compressed_graph.vertex_count(), graph.vertex_count());
         assert_eq!(compressed_graph.vertex_count(), 24);
         assert_eq!(compressed_graph.edge_count(), 128); // 64 + 32 + 32
@@ -1752,7 +1797,7 @@ mod tests {
         graph.add_edge(22, 18);
         graph.add_edge(15, 18);
 
-        let compressed_graph = graph.compress(0.2);
+        let compressed_graph = graph.compress(4);
         let decompressed_graph = compressed_graph.decompress();
 
         assert_eq!(graph.is_undirected(), decompressed_graph.is_undirected());
@@ -1792,7 +1837,7 @@ mod tests {
         graph.add_edge(22, 18);
         graph.add_edge(15, 18);
 
-        let compressed_graph = graph.compress(0.2);
+        let compressed_graph = graph.compress(4);
         let decompressed_graph = compressed_graph.decompress();
 
         assert_eq!(graph.is_undirected(), decompressed_graph.is_undirected());

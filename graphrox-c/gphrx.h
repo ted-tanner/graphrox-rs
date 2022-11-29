@@ -61,7 +61,7 @@ const GphrxCsrSquareMatrix gphrx_find_avg_pool_matrix(const GphrxGraph graph,
 GphrxGraph gphrx_approximate(const GphrxGraph graph,
                              uint64_t block_dimension,
                              double threshold);
-const GphrxCompressedGraph gphrx_compress(const GphrxGraph graph, double threshold);
+const GphrxCompressedGraph gphrx_compress(const GphrxGraph graph, uint8_t compression_level);
 const GphrxGraphEdge *gphrx_get_edge_list(const GphrxGraph graph, size_t *length);
 
 void gphrx_add_vertex(GphrxGraph graph,
@@ -85,7 +85,7 @@ void free_gphrx_compressed_graph(const GphrxCompressedGraph graph);
 
 GphrxCompressedGraph gphrx_compressed_graph_duplicate(const GphrxCompressedGraph graph);
 
-double gphrx_compressed_graph_threshold(const GphrxCompressedGraph graph);
+uint8_t gphrx_compressed_graph_compression_level(const GphrxCompressedGraph graph);
 int8_t gphrx_compressed_graph_is_undirected(const GphrxCompressedGraph graph);
 uint64_t gphrx_compressed_graph_vertex_count(const GphrxCompressedGraph graph);
 uint64_t gphrx_compressed_graph_edge_count(const GphrxCompressedGraph graph);

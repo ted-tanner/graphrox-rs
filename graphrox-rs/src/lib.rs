@@ -65,9 +65,9 @@
 //! // represented with a 1 in the adjacency matrix of the resulting graph.
 //! let approx_graph = graph.approximate(2, 0.5);
 //!
-//! println!("{}", graph.matrix_representation_string());
+//! println!("{}", graph.matrix_string());
 //! println!();
-//! println!("{}", approx_graph.matrix_representation_string());
+//! println!("{}", approx_graph.matrix_string());
 //!
 //! /* Ouput:
 //!
@@ -105,7 +105,7 @@
 //!
 //! let avg_pool_matrix = graph.find_avg_pool_matrix(2);
 //!
-//! println!("{}", graph.matrix_representation_string());
+//! println!("{}", graph.matrix_string());
 //! println!();
 //! println!("{}", avg_pool_matrix.to_string());
 //!
@@ -137,7 +137,11 @@
 //! the threshold, the entire block will be represented by a 0 in the resulting matrix. Because
 //! GraphRox stores matrices as adjacency lists, 0 entries have no effect on storage size.
 //!
-//! A threshold of 0.0 is essentially a lossless compression.
+//! `compression_level` is divided by 64 to obtain the threshold. Thus, `compression_level` is
+//! equal to the number of entries in an 8x8 block of the adjacency matrix that must be ones in
+//! order for the block to be losslessly encoded in the CompressedGraph. A CompressedGraph is
+//! not necessarily approximated, though, because the `compression_level` may be one.
+//! `compression_level` will be clamped to a number between 1 and 64 inclusive.
 //!
 //! ```
 //! use graphrox::{Graph, GraphRepresentation};
@@ -160,7 +164,7 @@
 //! graph.add_edge(22, 18);
 //! graph.add_edge(15, 18);
 //!
-//! let compressed_graph = graph.compress(0.05);
+//! let compressed_graph = graph.compress(2);
 //!
 //! assert_eq!(compressed_graph.vertex_count(), 24);
 //! assert_eq!(compressed_graph.edge_count(), 96); // 64 + 32
@@ -183,7 +187,7 @@
 //! graph.add_vertex(0, Some(&[1, 2, 6]));
 //! graph.add_vertex(3, Some(&[1, 2]));
 //!
-//! let compressed_graph = graph.compress(0.1);
+//! let compressed_graph = graph.compress(4);
 //! let decompressed_graph = compressed_graph.decompress();
 //!
 //! assert_eq!(graph.edge_count(), decompressed_graph.edge_count());
@@ -229,7 +233,7 @@
 //! }
 //!
 //! // Compressed graphs can be converted to bytes as well
-//! let compressed_graph = graph.compress(0.05);
+//! let compressed_graph = graph.compress(2);
 //! fs::write("compressed-graph.cgphrx", compressed_graph.to_bytes()).unwrap();
 //!
 //! // Read the compressed_graph from a file (then delete the file)

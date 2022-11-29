@@ -136,7 +136,7 @@ _lib.gphrx_find_avg_pool_matrix.restype = _GphrxCsrSquareMatrix_c
 _lib.gphrx_approximate.argtypes = (_GphrxGraph_c, ctypes.c_uint64, ctypes.c_double)
 _lib.gphrx_approximate.restype = _GphrxGraph_c
 
-_lib.gphrx_compress.argtypes = (_GphrxGraph_c, ctypes.c_double)
+_lib.gphrx_compress.argtypes = (_GphrxGraph_c, ctypes.c_uint8)
 _lib.gphrx_compress.restype = _GphrxCompressedGraph_c
 
 _lib.gphrx_get_edge_list.argtypes = (_GphrxGraph_c, ctypes.POINTER(ctypes.c_size_t))
@@ -177,8 +177,8 @@ _lib.free_gphrx_compressed_graph.restype = None
 _lib.gphrx_compressed_graph_duplicate.argtypes = [_GphrxCompressedGraph_c]
 _lib.gphrx_compressed_graph_duplicate.restype = _GphrxCompressedGraph_c
 
-_lib.gphrx_compressed_graph_threshold.argtypes = [_GphrxCompressedGraph_c]
-_lib.gphrx_compressed_graph_threshold.restype = ctypes.c_double
+_lib.gphrx_compressed_graph_compression_level.argtypes = [_GphrxCompressedGraph_c]
+_lib.gphrx_compressed_graph_compression_level.restype = ctypes.c_uint8
 
 _lib.gphrx_compressed_graph_is_undirected.argtypes = [_GphrxCompressedGraph_c]
 _lib.gphrx_compressed_graph_is_undirected.restype = ctypes.c_int8
@@ -393,7 +393,7 @@ class Graph:
         c_graph = _lib.gphrx_approximate(self._graph, block_dimension, threshold)
         return Graph(_c_graph=c_graph)
 
-    def compress(self, threshold):
+    def compress(self, compression_level):
         """Compresses a graph with a lossy algorithm.
 
         `Graph`s can be compressed into a space-efficient form. 8x8 blocks in the graph's
@@ -402,15 +402,19 @@ class Graph:
         losslessly encoded in an unsigned 64-bit integer. If the block does not meet the
         threshold, the entire block will be represented by a 0 in the resulting matrix. Because
         GraphRox stores matrices as adjacency lists, 0 entries have no effect on storage size.
-        
-        The average pooled adjacency matrix entries will always be in the range of [0.0, 1.0]
-        inclusive. The `threshold` parameter is therefore clamped between 10^(-18) and 1.0.
-        Any `threshold` less than 10^(-18) will be treated as 10^(-18) and any `threshold`
-        greater than 1.0 will be treated as 1.0.
-    
-        A threshold of 0.0 is essentially a lossless compression.
+
+        `compression_level` is divided by 64 to obtain the threshold. Thus, `compression_level` is
+        equal to the number of entries in an 8x8 block of the adjacency matrix that must be ones in
+        order for the block to be losslessly encoded in the CompressedGraph. A CompressedGraph is
+        not necessarily approximated, though, because the `compression_level` may be one.
+        `compression_level` will be clamped to a number between 1 and 64 inclusive.
         """
-        c_compressed_graph = _lib.gphrx_compress(self._graph, threshold)
+        if compression_level > 64:
+            compression_level = 64
+        elif compression_level < 1:
+            compression_level = 1
+
+        c_compressed_graph = _lib.gphrx_compress(self._graph, compression_level)
         return CompressedGraph(c_compressed_graph)
 
     def edge_list(self):
@@ -628,13 +632,13 @@ class CompressedGraph:
         c_graph = _lib.gphrx_decompress(self._graph)
         return Graph(_c_graph=c_graph)
 
-    def threshold(self):
-        """Returns the threshold used to create the `CompressedGraph`.
+    def compression_level(self):
+        """Returns the compression level used to create the `CompressedGraph`.
 
-        Returns the threshold that was applied to the average pooling of the original graph's
-        adjacency matrix to create the CompressedGraph.
+        Returns the compression level that was applied to obtain the threshold for the average
+        pooling of the original graph's adjacency matrix to create the CompressedGraph.
         """
-        return float(_lib.gphrx_compressed_graph_threshold(self._graph))
+        return float(_lib.gphrx_compressed_graph_compression_level(self._graph))
 
     def is_undirected(self):
         """Returns `True` if the graph is undirected. Otherwise, returns `False`."""

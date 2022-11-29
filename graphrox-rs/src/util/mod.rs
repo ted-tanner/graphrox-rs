@@ -29,6 +29,17 @@ pub fn clamp_threshold(threshold: f64) -> f64 {
     }
 }
 
+#[inline]
+pub fn clamp_compression_level(compression_level: u8) -> u8 {
+    if compression_level > 64 {
+        64
+    } else if compression_level == 0 {
+        1
+    } else {
+        compression_level
+    }
+}
+
 pub trait Numeric: PartialOrd + Copy {
     fn max() -> Self;
     fn min() -> Self;

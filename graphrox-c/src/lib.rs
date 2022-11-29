@@ -149,8 +149,7 @@ pub unsafe extern "C" fn gphrx_matrix_string(graph: GphrxGraph) -> *mut ffi::c_c
         .as_ref()
         .unwrap_unchecked();
 
-    ffi::CString::from_vec_unchecked((*graph).matrix_representation_string().as_bytes().to_vec())
-        .into_raw()
+    ffi::CString::from_vec_unchecked((*graph).matrix_string().as_bytes().to_vec()).into_raw()
 }
 
 #[no_mangle]
@@ -247,12 +246,15 @@ pub unsafe extern "C" fn gphrx_approximate(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn gphrx_compress(graph: GphrxGraph, threshold: f64) -> GphrxCompressedGraph {
+pub unsafe extern "C" fn gphrx_compress(
+    graph: GphrxGraph,
+    compression_level: u8,
+) -> GphrxCompressedGraph {
     let graph = (graph.graph_ptr as *const Graph)
         .as_ref()
         .unwrap_unchecked();
 
-    let compressed_graph = graph.compress(threshold);
+    let compressed_graph = graph.compress(compression_level);
 
     GphrxCompressedGraph {
         graph_ptr: Box::into_raw(Box::new(compressed_graph)) as *mut _,
@@ -403,12 +405,14 @@ pub unsafe extern "C" fn gphrx_compressed_graph_duplicate(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn gphrx_compressed_graph_threshold(graph: GphrxCompressedGraph) -> f64 {
+pub unsafe extern "C" fn gphrx_compressed_graph_compression_level(
+    graph: GphrxCompressedGraph,
+) -> u8 {
     let graph = (graph.graph_ptr as *const CompressedGraph)
         .as_ref()
         .unwrap_unchecked();
 
-    graph.threshold()
+    graph.compression_level()
 }
 
 #[no_mangle]
@@ -482,8 +486,7 @@ pub unsafe extern "C" fn gphrx_compressed_graph_matrix_string(
         .as_ref()
         .unwrap_unchecked();
 
-    ffi::CString::from_vec_unchecked((*graph).matrix_representation_string().as_bytes().to_vec())
-        .into_raw()
+    ffi::CString::from_vec_unchecked((*graph).matrix_string().as_bytes().to_vec()).into_raw()
 }
 
 #[no_mangle]
@@ -1095,13 +1098,16 @@ mod tests {
             gphrx_add_edge(graph, 22, 18);
             gphrx_add_edge(graph, 15, 18);
 
-            let compressed_graph = gphrx_compress(graph, 0.2);
+            let compressed_graph = gphrx_compress(graph, 9);
 
             assert_eq!(
                 gphrx_compressed_graph_is_undirected(compressed_graph),
                 gphrx_is_undirected(graph)
             );
-            assert_eq!(gphrx_compressed_graph_threshold(compressed_graph), 0.2);
+            assert_eq!(
+                gphrx_compressed_graph_compression_level(compressed_graph),
+                9
+            );
             assert_eq!(
                 gphrx_compressed_graph_vertex_count(compressed_graph),
                 gphrx_vertex_count(graph)
@@ -1483,7 +1489,7 @@ mod tests {
             gphrx_add_edge(graph, 22, 18);
             gphrx_add_edge(graph, 15, 18);
 
-            let compressed_graph = gphrx_compress(graph, 0.2);
+            let compressed_graph = gphrx_compress(graph, 4);
 
             free_gphrx_graph(graph);
 
@@ -1514,14 +1520,17 @@ mod tests {
             gphrx_add_edge(graph, 22, 18);
             gphrx_add_edge(graph, 15, 18);
 
-            let compressed_graph = gphrx_compress(graph, 0.2);
+            let compressed_graph = gphrx_compress(graph, 6);
             let compressed_graph_dup = gphrx_compressed_graph_duplicate(compressed_graph);
 
             assert_eq!(
                 gphrx_compressed_graph_is_undirected(compressed_graph_dup),
                 gphrx_is_undirected(graph)
             );
-            assert_eq!(gphrx_compressed_graph_threshold(compressed_graph_dup), 0.2);
+            assert_eq!(
+                gphrx_compressed_graph_compression_level(compressed_graph_dup),
+                6
+            );
             assert_eq!(
                 gphrx_compressed_graph_vertex_count(compressed_graph_dup),
                 gphrx_vertex_count(graph)
@@ -1548,15 +1557,18 @@ mod tests {
     }
 
     #[test]
-    fn test_gphrx_compressed_graph_threshold() {
+    fn test_gphrx_compressed_graph_compression_level() {
         let graph = gphrx_new_directed();
 
         unsafe {
             gphrx_add_edge(graph, 10, 1);
 
-            let compressed_graph = gphrx_compress(graph, 0.42);
+            let compressed_graph = gphrx_compress(graph, 42);
 
-            assert_eq!(gphrx_compressed_graph_threshold(compressed_graph), 0.42);
+            assert_eq!(
+                gphrx_compressed_graph_compression_level(compressed_graph),
+                42
+            );
 
             free_gphrx_graph(graph);
             free_gphrx_compressed_graph(compressed_graph);
@@ -1568,7 +1580,7 @@ mod tests {
         let graph = gphrx_new_undirected();
 
         unsafe {
-            let compressed_graph = gphrx_compress(graph, 0.1);
+            let compressed_graph = gphrx_compress(graph, 2);
             assert_eq!(
                 gphrx_compressed_graph_is_undirected(compressed_graph),
                 C_TRUE
@@ -1578,7 +1590,7 @@ mod tests {
         let graph = gphrx_new_directed();
 
         unsafe {
-            let compressed_graph = gphrx_compress(graph, 0.1);
+            let compressed_graph = gphrx_compress(graph, 10);
             assert_eq!(
                 gphrx_compressed_graph_is_undirected(compressed_graph),
                 C_FALSE
@@ -1593,7 +1605,7 @@ mod tests {
         unsafe {
             gphrx_add_edge(graph, 10, 1);
 
-            let compressed_graph = gphrx_compress(graph, 0.0);
+            let compressed_graph = gphrx_compress(graph, 0);
 
             assert_eq!(gphrx_compressed_graph_vertex_count(compressed_graph), 11);
 
@@ -1609,7 +1621,7 @@ mod tests {
         unsafe {
             gphrx_add_edge(graph, 10, 1);
 
-            let compressed_graph = gphrx_compress(graph, 0.0);
+            let compressed_graph = gphrx_compress(graph, 0);
 
             assert_eq!(gphrx_compressed_graph_edge_count(compressed_graph), 2);
 
@@ -1622,7 +1634,7 @@ mod tests {
         unsafe {
             gphrx_add_edge(graph, 10, 1);
 
-            let compressed_graph = gphrx_compress(graph, 0.0);
+            let compressed_graph = gphrx_compress(graph, 0);
 
             assert_eq!(gphrx_compressed_graph_edge_count(compressed_graph), 1);
 
@@ -1653,7 +1665,7 @@ mod tests {
             gphrx_add_edge(graph, 22, 18);
             gphrx_add_edge(graph, 15, 18);
 
-            let compressed_graph = gphrx_compress(graph, 0.2);
+            let compressed_graph = gphrx_compress(graph, 7);
 
             for i in 8..16 {
                 for j in 8..16 {
@@ -1706,7 +1718,7 @@ mod tests {
                 }
             }
 
-            let compressed_graph = gphrx_compress(graph, 0.2);
+            let compressed_graph = gphrx_compress(graph, 13);
 
             assert_eq!(gphrx_get_compressed_matrix_entry(compressed_graph, 0, 0), 0);
             assert_eq!(
@@ -1746,7 +1758,7 @@ mod tests {
                 }
             }
 
-            let compressed_graph = gphrx_compress(graph, 0.2);
+            let compressed_graph = gphrx_compress(graph, 4);
             let compressed_graph_string =
                 ffi::CString::from_raw(gphrx_compressed_graph_matrix_string(compressed_graph));
             let compressed_graph_string = compressed_graph_string.as_c_str().to_str().unwrap();
@@ -1763,7 +1775,7 @@ mod tests {
 
     #[test]
     fn test_gphrx_compressed_graph_to_from_bytes() {
-        const SIZE_OF_COMPRESSED_GRAPH_BYTES_HEADER: usize = 49;
+        const SIZE_OF_COMPRESSED_GRAPH_BYTES_HEADER: usize = 42;
         let graph = gphrx_new_directed();
 
         unsafe {
@@ -1781,7 +1793,7 @@ mod tests {
                 }
             }
 
-            let compressed_graph = gphrx_compress(graph, 0.25);
+            let compressed_graph = gphrx_compress(graph, 25);
 
             let mut size = 0;
             let bytes = gphrx_compressed_graph_to_bytes(compressed_graph, &mut size as *mut _);
@@ -1802,8 +1814,8 @@ mod tests {
                 gphrx_is_undirected(graph)
             );
             assert_eq!(
-                gphrx_compressed_graph_threshold(compressed_graph_from_bytes),
-                0.25
+                gphrx_compressed_graph_compression_level(compressed_graph_from_bytes),
+                25
             );
             assert_eq!(
                 gphrx_compressed_graph_vertex_count(compressed_graph_from_bytes),
@@ -1853,7 +1865,7 @@ mod tests {
                 }
             }
 
-            let compressed_graph = gphrx_compress(graph, 0.2);
+            let compressed_graph = gphrx_compress(graph, 23);
             let decompressed_graph = gphrx_decompress(compressed_graph);
 
             assert_eq!(

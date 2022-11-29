@@ -11,8 +11,7 @@ use crate::matrix::{CsrSquareMatrix, MatrixRepresentation};
 use crate::util::{self, constants::*};
 
 const COMPRESSED_GRAPH_BYTES_MAGIC_NUMBER: u32 = 0x71ff7aed;
-const COMPRESSED_GRAPH_BYTES_VERSION: u32 = 1;
-const THRESHOLD_TO_UINT_MULTIPLIER: u64 = 10u64.pow(MIN_THRESHOLD_DIVISOR_POWER_TEN);
+const COMPRESSED_GRAPH_BYTES_VERSION: u32 = 2;
 
 #[repr(C, packed)]
 struct CompressedGraphBytesHeader {
@@ -20,10 +19,10 @@ struct CompressedGraphBytesHeader {
     version: u32,
     adjacency_matrix_dimension: u64,
     adjacency_matrix_entry_count: u64,
-    threshold_uint: u64,
     edge_count: u64,
     vertex_count: u64,
     is_undirected: u8,
+    compression_level: u8,
 }
 
 /// An efficient representation of a network graph. Graphs are stored as a sparse edge list
@@ -33,10 +32,13 @@ struct CompressedGraphBytesHeader {
 ///
 /// When a CompressedGraph is constructed from a `graphrox::Graph`, it is normally
 /// approximated. Only clusters of edges in the original adjacency matrix are represented in
-/// the CompressedGraph, hence a CompressedGraph tracks a `threshold` that indicates the
-/// threshold applied to the average pooling of the original matrix. A CompressedGraph is not
-/// necessarily approximated, though, because the `threshold` may be zero (approximately zero,
-/// actually 10^(-18)).
+/// the CompressedGraph, hence a CompressedGraph tracks a `compression_level` that indicates
+/// the threshold applied to the average pooling of the original matrix. The
+/// `compression_level` is divided by 64 to obtain the threshold. Thus, `compression_level` is
+/// equal to the number of entries in an 8x8 block of the adjacency matrix that must be ones in
+/// order for the block to be losslessly encoded in the CompressedGraph. A CompressedGraph is
+/// not necessarily approximated, though, because the `compression_level` may be one.
+/// `compression_level` will be clamped to a number between 1 and 64 inclusive.
 ///
 /// Normally, a CompressedGraph is constructed by calling `compress()` on a `graphrox::Graph`,
 /// but they can also be constructed manually using a
@@ -52,20 +54,20 @@ struct CompressedGraphBytesHeader {
 /// graph.add_vertex(1, Some(&[1, 2]));
 /// // ... more vertices ...
 ///
-/// let compressed_graph = graph.compress(0.002);
+/// let compressed_graph = graph.compress(3);
 ///
-/// assert_eq!(compressed_graph.threshold(), 0.002);
+/// assert_eq!(compressed_graph.compression_level(), 3);
 /// assert!(compressed_graph.does_edge_exist(0, 1));
 /// assert!(compressed_graph.does_edge_exist(0, 2));
 /// // ...
 /// ```
 #[derive(Clone, Debug)]
 pub struct CompressedGraph {
-    is_undirected: bool,
-    threshold: f64,
     edge_count: u64,
     vertex_count: u64,
     adjacency_matrix: CsrSquareMatrix<u64>,
+    is_undirected: bool,
+    compression_level: u8,
 }
 
 impl CompressedGraph {
@@ -80,7 +82,7 @@ impl CompressedGraph {
     /// graph.add_vertex(1, Some(&[1, 2]));
     /// // ... more vertices ...
     ///
-    /// let compressed_graph = graph.compress(0.01);
+    /// let compressed_graph = graph.compress(1);
     /// let decompressed_graph = compressed_graph.decompress();
     ///
     /// assert_eq!(decompressed_graph.vertex_count(), graph.vertex_count());
@@ -103,9 +105,9 @@ impl CompressedGraph {
             let mut curr = Wrapping(1);
             for i in 0..64 {
                 if entry & curr.0 == curr.0 {
-                    // These expensive integer multiplications/divisions/moduli will be optimized to
-                    // inexpensive bitwise operations by the compiler because COMPRESSION_BLOCK_DIMENSION
-                    // is a power of two.
+                    // These expensive integer multiplications/divisions/moduli will be
+                    // optimized to inexpensive bitwise operations by the compiler because
+                    // COMPRESSION_BLOCK_DIMENSION is a power of two.
                     let absolute_col =
                         col * COMPRESSION_BLOCK_DIMENSION + i as u64 % COMPRESSION_BLOCK_DIMENSION;
                     let absolute_row =
@@ -120,8 +122,8 @@ impl CompressedGraph {
         graph
     }
 
-    /// Returns the threshold that was applied to the average pooling of the original graph's
-    /// adjacency matrix to create the CompressedGraph.
+    /// Returns the compression level that was applied to the average pooling of the original
+    /// graph's adjacency matrix to create the CompressedGraph.
     ///
     /// ```
     /// use graphrox::{Graph, GraphRepresentation};
@@ -132,12 +134,12 @@ impl CompressedGraph {
     /// graph.add_vertex(1, Some(&[1, 2]));
     /// // ... more vertices ...
     ///
-    /// let compressed_graph = graph.compress(0.0042);
+    /// let compressed_graph = graph.compress(42);
     ///
-    /// assert_eq!(compressed_graph.threshold(), 0.0042);
+    /// assert_eq!(compressed_graph.compression_level(), 42);
     /// ```
-    pub fn threshold(&self) -> f64 {
-        self.threshold
+    pub fn compression_level(&self) -> u8 {
+        self.compression_level
     }
 
     /// Returns an entry in the matrix that is used to store a CompressedGraph. The entries
@@ -161,7 +163,7 @@ impl CompressedGraph {
     ///     }
     /// }
     ///
-    /// let compressed_graph = graph.compress(0.05);
+    /// let compressed_graph = graph.compress(2);
     ///
     /// // Because half of the 8x8 block was filled, half of the bits in the u64 are ones.
     /// assert_eq!(compressed_graph.get_compressed_matrix_entry(0, 0), 0x00000000ffffffffu64);
@@ -187,7 +189,7 @@ impl GraphRepresentation for CompressedGraph {
         self.edge_count
     }
 
-    fn matrix_representation_string(&self) -> String {
+    fn matrix_string(&self) -> String {
         self.adjacency_matrix.to_string()
     }
 
@@ -216,10 +218,10 @@ impl GraphRepresentation for CompressedGraph {
             version: COMPRESSED_GRAPH_BYTES_VERSION.to_be(),
             adjacency_matrix_dimension: self.adjacency_matrix.dimension().to_be(),
             adjacency_matrix_entry_count: self.adjacency_matrix.entry_count().to_be(),
-            threshold_uint: ((self.threshold * THRESHOLD_TO_UINT_MULTIPLIER as f64) as u64).to_be(),
             edge_count: self.edge_count.to_be(),
             vertex_count: self.vertex_count.to_be(),
             is_undirected: u8::from(self.is_undirected).to_be(),
+            compression_level: self.compression_level.to_be(),
         };
 
         let buffer_size = (self.adjacency_matrix.entry_count() * 3) as usize
@@ -310,13 +312,13 @@ impl TryFrom<&[u8]> for CompressedGraph {
             adjacency_matrix_entry_count: u64::from_be(
                 header_slice[0].adjacency_matrix_entry_count,
             ),
-            threshold_uint: u64::from_be(header_slice[0].threshold_uint),
             edge_count: u64::from_be(header_slice[0].edge_count),
             vertex_count: u64::from_be(header_slice[0].vertex_count),
             is_undirected: u8::from_be(header_slice[0].is_undirected),
+            compression_level: util::clamp_compression_level(u8::from_be(
+                header_slice[0].compression_level,
+            )),
         };
-
-        let threshold = header.threshold_uint as f64 / THRESHOLD_TO_UINT_MULTIPLIER as f64;
 
         if header.magic_number != COMPRESSED_GRAPH_BYTES_MAGIC_NUMBER {
             return Err(GraphRoxError::InvalidFormat(String::from(
@@ -324,7 +326,11 @@ impl TryFrom<&[u8]> for CompressedGraph {
             )));
         }
 
-        if header.version != 1u32 {
+        if header.version < COMPRESSED_GRAPH_BYTES_VERSION {
+            return Err(GraphRoxError::InvalidFormat(String::from(
+                "Outdated CompressedGraph version",
+            )));
+        } else if header.version != COMPRESSED_GRAPH_BYTES_VERSION {
             return Err(GraphRoxError::InvalidFormat(String::from(
                 "Unrecognized CompressedGraph version",
             )));
@@ -345,8 +351,11 @@ impl TryFrom<&[u8]> for CompressedGraph {
             )));
         }
 
-        let mut compressed_graph_builder =
-            CompressedGraphBuilder::new(header.is_undirected == 1, header.vertex_count, threshold);
+        let mut compressed_graph_builder = CompressedGraphBuilder::new(
+            header.is_undirected == 1,
+            header.vertex_count,
+            header.compression_level,
+        );
 
         let mut pos = HEADER_SIZE;
         let bytes_ptr = bytes.as_ptr();
@@ -394,7 +403,7 @@ impl TryFrom<&[u8]> for CompressedGraph {
 /// use graphrox::GraphRepresentation; // Import trait for does_edge_exist
 /// use graphrox::builder::CompressedGraphBuilder;
 ///
-/// let mut builder = CompressedGraphBuilder::new(false, 10, 0.07);
+/// let mut builder = CompressedGraphBuilder::new(false, 10, 7);
 /// builder.add_compressed_matrix_entry(u64::MAX, 1, 1, None);
 ///
 /// let compressed_graph = unsafe { builder.finish() };
@@ -418,24 +427,22 @@ pub struct CompressedGraphBuilder {
 }
 
 impl CompressedGraphBuilder {
-    /// Creates a new CompressedGraphBuilder that stores the given parameters. The `threshold`
-    /// parameter will be clamped to a value between 10^(-18) and 1.0, but the other parameters
-    /// will not be validated.
+    /// Creates a new CompressedGraphBuilder that stores the given parameters. The
+    /// `compression_level` parameter will be clamped to a value between 1 and 64, but the
+    /// other parameters will not be validated.
     ///
     /// ```
     /// use graphrox::GraphRepresentation;
     /// use graphrox::builder::CompressedGraphBuilder;
     ///
-    /// let builder = CompressedGraphBuilder::new(true, 70, 0.042);
+    /// let builder = CompressedGraphBuilder::new(true, 70, 42);
     /// let compressed_graph = unsafe { builder.finish() };
     ///
     /// assert!(compressed_graph.is_undirected());
     /// assert_eq!(compressed_graph.vertex_count(), 70);
-    /// assert_eq!(compressed_graph.threshold(), 0.042);
+    /// assert_eq!(compressed_graph.compression_level(), 42);
     /// ```
-    pub fn new(is_undirected: bool, vertex_count: u64, threshold: f64) -> Self {
-        let threshold = util::clamp_threshold(threshold);
-
+    pub fn new(is_undirected: bool, vertex_count: u64, compression_level: u8) -> Self {
         let mut adjacency_matrix = CsrSquareMatrix::default();
 
         let mut column_count = vertex_count / COMPRESSION_BLOCK_DIMENSION;
@@ -453,11 +460,11 @@ impl CompressedGraphBuilder {
 
         Self {
             graph: CompressedGraph {
-                is_undirected,
-                threshold,
                 edge_count: 0,
                 vertex_count,
                 adjacency_matrix,
+                is_undirected,
+                compression_level: util::clamp_compression_level(compression_level),
             },
         }
     }
@@ -493,7 +500,7 @@ impl CompressedGraphBuilder {
     /// use graphrox::GraphRepresentation; // Import trait for does_edge_exist
     /// use graphrox::builder::CompressedGraphBuilder;
     ///
-    /// let mut builder = CompressedGraphBuilder::new(false, 10, 0.07);
+    /// let mut builder = CompressedGraphBuilder::new(false, 10, 60);
     /// builder.add_compressed_matrix_entry(u64::MAX, 1, 1, None);
     ///
     /// let compressed_graph = unsafe { builder.finish() };
@@ -551,12 +558,12 @@ impl CompressedGraphBuilder {
     /// use graphrox::GraphRepresentation;
     /// use graphrox::builder::CompressedGraphBuilder;
     ///
-    /// let builder = CompressedGraphBuilder::new(true, 70, 0.042);
+    /// let builder = CompressedGraphBuilder::new(true, 70, 42);
     /// let compressed_graph = unsafe { builder.finish() };
     ///
     /// assert!(compressed_graph.is_undirected());
     /// assert_eq!(compressed_graph.vertex_count(), 70);
-    /// assert_eq!(compressed_graph.threshold(), 0.042);
+    /// assert_eq!(compressed_graph.compression_level(), 42);
     /// ```
     pub unsafe fn finish(self) -> CompressedGraph {
         self.graph
@@ -585,39 +592,45 @@ mod tests {
 
     #[test]
     fn test_compressed_graph_is_undirected() {
-        let graph = unsafe { CompressedGraphBuilder::new(true, 8, 0.3).finish() };
+        let graph = unsafe { CompressedGraphBuilder::new(true, 8, 7).finish() };
         assert!(graph.is_undirected());
 
-        let graph = unsafe { CompressedGraphBuilder::new(false, 9, 0.1).finish() };
+        let graph = unsafe { CompressedGraphBuilder::new(false, 9, 8).finish() };
         assert!(!graph.is_undirected());
     }
 
     #[test]
     fn test_compressed_graph_vertex_count() {
-        let graph = unsafe { CompressedGraphBuilder::new(true, 8, 0.3).finish() };
+        let graph = unsafe { CompressedGraphBuilder::new(true, 8, 8).finish() };
         assert_eq!(graph.vertex_count(), 8);
 
-        let graph = unsafe { CompressedGraphBuilder::new(false, 100, 0.8).finish() };
+        let graph = unsafe { CompressedGraphBuilder::new(false, 100, 15).finish() };
         assert_eq!(graph.vertex_count(), 100);
     }
 
     #[test]
     fn test_compressed_graph_edge_count() {
-        let mut graph = CompressedGraphBuilder::new(false, 15, 0.3);
+        let mut graph = CompressedGraphBuilder::new(false, 15, 42);
         graph.add_compressed_matrix_entry(u64::MAX, 1, 1, None);
         let graph = unsafe { graph.finish() };
         assert_eq!(graph.edge_count(), 64);
     }
 
     #[test]
-    fn test_compressed_graph_threshold() {
-        let graph = unsafe { CompressedGraphBuilder::new(true, 9, 0.77).finish() };
-        assert_eq!(graph.threshold(), 0.77);
+    fn test_compressed_graph_compression_level() {
+        let graph = unsafe { CompressedGraphBuilder::new(true, 9, 43).finish() };
+        assert_eq!(graph.compression_level(), 43);
+
+        let graph = unsafe { CompressedGraphBuilder::new(true, 9, 0).finish() };
+        assert_eq!(graph.compression_level(), 1);
+
+        let graph = unsafe { CompressedGraphBuilder::new(true, 9, 65).finish() };
+        assert_eq!(graph.compression_level(), 64);
     }
 
     #[test]
     fn test_compressed_graph_get_compressed_matrix_entry() {
-        let mut graph = CompressedGraphBuilder::new(false, 15, 0.3);
+        let mut graph = CompressedGraphBuilder::new(false, 15, 5);
         graph.add_compressed_matrix_entry(42, 0, 0, None);
         graph.add_compressed_matrix_entry(67, 0, 1, None);
         graph.add_compressed_matrix_entry(u64::MAX, 1, 1, None);
@@ -629,28 +642,28 @@ mod tests {
     }
 
     #[test]
-    fn test_compressed_graph_matrix_representation_string() {
-        let mut graph = CompressedGraphBuilder::new(false, 16, 0.3);
+    fn test_compressed_graph_matrix_string() {
+        let mut graph = CompressedGraphBuilder::new(false, 16, 9);
         graph.add_compressed_matrix_entry(300, 1, 1, None);
         graph.add_compressed_matrix_entry(10, 2, 1, None);
 
         let graph = unsafe { graph.finish() };
 
         let expected = "[   0,   0,   0 ]\r\n[   0, 300,  10 ]\r\n[   0,   0,   0 ]";
-        assert_eq!(expected, graph.matrix_representation_string());
+        assert_eq!(expected, graph.matrix_string());
 
-        let mut graph = CompressedGraphBuilder::new(false, 27, 0.3);
+        let mut graph = CompressedGraphBuilder::new(false, 27, 6);
         graph.add_compressed_matrix_entry(9, 1, 1, None);
 
         let graph = unsafe { graph.finish() };
 
         let expected = "[ 0, 0, 0, 0 ]\r\n[ 0, 9, 0, 0 ]\r\n[ 0, 0, 0, 0 ]\r\n[ 0, 0, 0, 0 ]";
-        assert_eq!(expected, graph.matrix_representation_string());
+        assert_eq!(expected, graph.matrix_string());
     }
 
     #[test]
     fn test_compressed_graph_does_edge_exist() {
-        let mut graph = CompressedGraphBuilder::new(false, 16, 0.3);
+        let mut graph = CompressedGraphBuilder::new(false, 16, 13);
         graph.add_compressed_matrix_entry(u64::MAX, 1, 1, None);
         let graph = unsafe { graph.finish() };
 
@@ -675,7 +688,7 @@ mod tests {
 
     #[test]
     fn test_compressed_graph_to_from_bytes() {
-        let mut graph = CompressedGraphBuilder::new(false, 100, 0.3);
+        let mut graph = CompressedGraphBuilder::new(false, 100, 18);
         graph.add_compressed_matrix_entry(300, 1, 1, None);
         graph.add_compressed_matrix_entry(10, 2, 1, None);
         graph.add_compressed_matrix_entry(8, 4, 3, None);
@@ -685,7 +698,7 @@ mod tests {
         let graph_from_bytes = CompressedGraph::try_from(bytes.as_slice()).unwrap();
 
         assert_eq!(graph.is_undirected, graph_from_bytes.is_undirected);
-        assert_eq!(graph.threshold, graph_from_bytes.threshold);
+        assert_eq!(graph.compression_level, graph_from_bytes.compression_level);
         assert_eq!(graph.edge_count, graph_from_bytes.edge_count);
         assert_eq!(graph.vertex_count, graph_from_bytes.vertex_count);
         assert_eq!(
@@ -715,7 +728,7 @@ mod tests {
 
     #[test]
     fn test_compressed_graph_decompress() {
-        let mut graph = CompressedGraphBuilder::new(false, 16, 0.3);
+        let mut graph = CompressedGraphBuilder::new(false, 16, 20);
         graph.add_compressed_matrix_entry(u64::MAX, 1, 1, None);
         let graph = unsafe { graph.finish() };
 
@@ -736,9 +749,9 @@ mod tests {
 
     #[test]
     fn test_compressed_graph_builder_new() {
-        let builder = CompressedGraphBuilder::new(true, 47, 0.42);
+        let builder = CompressedGraphBuilder::new(true, 47, 30);
         assert!(builder.graph.is_undirected);
-        assert_eq!(builder.graph.threshold, 0.42);
+        assert_eq!(builder.graph.compression_level, 30);
         assert_eq!(builder.graph.edge_count, 0);
         assert_eq!(builder.graph.vertex_count(), 47);
         assert_eq!(
@@ -746,19 +759,16 @@ mod tests {
             47 / COMPRESSION_BLOCK_DIMENSION + 1
         );
 
-        let builder = CompressedGraphBuilder::new(true, 47, 23.7);
-        assert_eq!(builder.graph.threshold, 1.0);
+        let builder = CompressedGraphBuilder::new(true, 47, 200);
+        assert_eq!(builder.graph.compression_level, 64);
 
-        let builder = CompressedGraphBuilder::new(true, 47, -53.9);
-        assert_eq!(builder.graph.threshold, GRAPH_APPROXIMATION_MIN_THRESHOLD);
-
-        let builder = CompressedGraphBuilder::new(false, 0, 0.0);
-        assert_eq!(builder.graph.threshold, GRAPH_APPROXIMATION_MIN_THRESHOLD);
+        let builder = CompressedGraphBuilder::new(true, 47, 0);
+        assert_eq!(builder.graph.compression_level, 1);
     }
 
     #[test]
     fn test_compressed_graph_builder_add_compressed_matrix_entry() {
-        let mut builder = CompressedGraphBuilder::new(false, 10, 0.42);
+        let mut builder = CompressedGraphBuilder::new(false, 10, 29);
 
         builder.add_compressed_matrix_entry(0x00000000000000ff, 2, 1, None);
         assert_eq!(builder.graph.edge_count, 8);
@@ -778,11 +788,11 @@ mod tests {
 
     #[test]
     fn test_compressed_graph_builder_finish() {
-        let mut builder = CompressedGraphBuilder::new(false, 10, 0.07);
+        let mut builder = CompressedGraphBuilder::new(false, 10, 2);
         builder.add_compressed_matrix_entry(u64::MAX, 1, 1, None);
 
         let builder_is_undirected = builder.graph.is_undirected;
-        let builder_threshold = builder.graph.threshold;
+        let builder_compression_level = builder.graph.compression_level;
         let builder_edge_count = builder.graph.edge_count;
         let builder_vertex_count = builder.graph.vertex_count;
         let builder_dimension = builder.graph.adjacency_matrix.dimension();
@@ -791,7 +801,7 @@ mod tests {
         let graph = unsafe { builder.finish() };
 
         assert_eq!(builder_is_undirected, graph.is_undirected);
-        assert_eq!(builder_threshold, graph.threshold);
+        assert_eq!(builder_compression_level, graph.compression_level);
         assert_eq!(builder_edge_count, graph.edge_count);
         assert_eq!(builder_vertex_count, graph.vertex_count);
         assert_eq!(builder_dimension, graph.adjacency_matrix.dimension());
