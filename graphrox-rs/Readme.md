@@ -11,7 +11,7 @@ To use the library in Rust, add it to `[dependencies]` in `Cargo.toml`.
 
 ```toml
 [dependencies]
-graphrox = "1.1"
+graphrox = "1.2"
 ```
 
 ## How it works
