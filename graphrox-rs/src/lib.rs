@@ -65,9 +65,9 @@
 //! // represented with a 1 in the adjacency matrix of the resulting graph.
 //! let approx_graph = graph.approximate(2, 0.5);
 //!
-//! println!("{}", graph.matrix_string());
+//! println!("{}", graph.matrix_string().unwrap());
 //! println!();
-//! println!("{}", approx_graph.matrix_string());
+//! println!("{}", approx_graph.matrix_string().unwrap());
 //!
 //! /* Ouput:
 //!
@@ -105,7 +105,7 @@
 //!
 //! let avg_pool_matrix = graph.find_avg_pool_matrix(2);
 //!
-//! println!("{}", graph.matrix_string());
+//! println!("{}", graph.matrix_string().unwrap());
 //! println!();
 //! println!("{}", avg_pool_matrix.to_string());
 //!
@@ -215,7 +215,7 @@
 //! graph.add_vertex(3, Some(&[1, 2]));
 //!
 //! // Convert the graph to bytes
-//! let graph_bytes = graph.to_bytes();
+//! let graph_bytes = graph.to_bytes().unwrap();
 //!
 //! // Save the bytes to a file
 //! fs::write("my-graph.gphrx", graph_bytes).unwrap();
@@ -234,7 +234,7 @@
 //!
 //! // Compressed graphs can be converted to bytes as well
 //! let compressed_graph = graph.compress(2);
-//! fs::write("compressed-graph.cgphrx", compressed_graph.to_bytes()).unwrap();
+//! fs::write("compressed-graph.cgphrx", compressed_graph.to_bytes().unwrap()).unwrap();
 //!
 //! // Read the compressed_graph from a file (then delete the file)
 //! let compressed_graph_file = fs::read("compressed-graph.cgphrx").unwrap();

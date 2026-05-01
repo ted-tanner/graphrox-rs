@@ -1,11 +1,10 @@
 use std::collections::hash_map::Iter as HashMapIter;
 use std::collections::hash_set::Iter as HashSetIter;
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 use std::iter::{IntoIterator, Iterator};
-use std::mem::MaybeUninit;
-use std::ptr;
-use std::string::ToString;
 
+use crate::error::GraphRoxError;
 use crate::matrix::MatrixRepresentation;
 
 /// A matrix in CSR (Compressed Sparse Row) format. The matrix uses a HashMap to map columns
@@ -177,6 +176,66 @@ impl CsrAdjacencyMatrix {
             .filter(|(_, row_set)| row_set.contains(&row))
             .count() as u64
     }
+
+    /// Tries to generate a string representation of a `CsrAdjacencyMatrix`.
+    pub fn try_to_string(&self) -> Result<String, GraphRoxError> {
+        const EXTRA_CHARS_PER_ROW_AT_FRONT: usize = 2; // "[ "
+        const EXTRA_CHARS_PER_ROW_AT_BACK: usize = 3; // "]\r\n"
+        const EXTRA_CHARS_PER_ROW_TOTAL: usize =
+            EXTRA_CHARS_PER_ROW_AT_FRONT + EXTRA_CHARS_PER_ROW_AT_BACK - 1;
+        const CHARS_PER_ENTRY: usize = 3;
+
+        if self.dimension == 0 {
+            return Ok(String::new());
+        }
+
+        let dimension = usize::try_from(self.dimension).map_err(|_| {
+            GraphRoxError::CapacityOverflow(String::from(
+                "Matrix dimension does not fit in platform usize",
+            ))
+        })?;
+        let matrix_entry_count = dimension.checked_mul(dimension).ok_or_else(|| {
+            GraphRoxError::CapacityOverflow(String::from("Matrix string size overflowed"))
+        })?;
+        let buffer_size = EXTRA_CHARS_PER_ROW_TOTAL
+            .checked_mul(dimension)
+            .and_then(|rows| {
+                CHARS_PER_ENTRY
+                    .checked_mul(matrix_entry_count)?
+                    .checked_add(rows)
+            })
+            .and_then(|size| size.checked_sub(2))
+            .ok_or_else(|| {
+                GraphRoxError::CapacityOverflow(String::from("Matrix string size overflowed"))
+            })?;
+
+        let mut buffer = String::new();
+        buffer.try_reserve_exact(buffer_size).map_err(|_| {
+            GraphRoxError::CapacityOverflow(String::from("Unable to allocate matrix string"))
+        })?;
+
+        for row in 0..self.dimension {
+            buffer.push_str("[ ");
+            for col in 0..self.dimension {
+                buffer.push(if self.get_entry(col, row) == 0 {
+                    '0'
+                } else {
+                    '1'
+                });
+                if col != self.dimension - 1 {
+                    buffer.push_str(", ");
+                } else {
+                    buffer.push(' ');
+                }
+            }
+            buffer.push(']');
+            if row != self.dimension - 1 {
+                buffer.push_str("\r\n");
+            }
+        }
+
+        Ok(buffer)
+    }
 }
 
 impl MatrixRepresentation<u8> for CsrAdjacencyMatrix {
@@ -198,12 +257,19 @@ impl MatrixRepresentation<u8> for CsrAdjacencyMatrix {
     }
 
     fn set_entry(&mut self, entry: u8, col: u64, row: u64) {
-        if col + 1 > self.dimension {
-            self.dimension = col + 1
+        let Some(col_dimension) = col.checked_add(1) else {
+            return;
+        };
+        let Some(row_dimension) = row.checked_add(1) else {
+            return;
+        };
+
+        if col_dimension > self.dimension {
+            self.dimension = col_dimension
         }
 
-        if row + 1 > self.dimension {
-            self.dimension = row + 1
+        if row_dimension > self.dimension {
+            self.dimension = row_dimension
         }
 
         if entry == 0 {
@@ -232,7 +298,7 @@ impl MatrixRepresentation<u8> for CsrAdjacencyMatrix {
     }
 }
 
-impl ToString for CsrAdjacencyMatrix {
+impl fmt::Display for CsrAdjacencyMatrix {
     /// Generates a string representation of a `CsrAdjacencyMatrix`.
     ///
     /// ```
@@ -255,88 +321,8 @@ impl ToString for CsrAdjacencyMatrix {
     ///
     /// */
     /// ```
-    fn to_string(&self) -> String {
-        const EXTRA_CHARS_PER_ROW_AT_FRONT: usize = 2; // "[ "
-        const EXTRA_CHARS_PER_ROW_AT_BACK: usize = 3; // "]\r\n"
-
-        // Minus one to account for trailing comma being removed from final entry in row
-        const EXTRA_CHARS_PER_ROW_TOTAL: usize =
-            EXTRA_CHARS_PER_ROW_AT_FRONT + EXTRA_CHARS_PER_ROW_AT_BACK - 1;
-        const CHARS_PER_ENTRY: usize = 3;
-
-        if self.dimension == 0 {
-            return String::new();
-        }
-
-        let buffer_size = EXTRA_CHARS_PER_ROW_TOTAL * self.dimension as usize
-            + CHARS_PER_ENTRY * (self.dimension * self.dimension) as usize
-            - 2;
-
-        let mut buffer = MaybeUninit::new(Vec::with_capacity(buffer_size));
-
-        let buffer_ptr = unsafe {
-            (*buffer.as_mut_ptr()).set_len((*buffer.as_mut_ptr()).capacity());
-            (*buffer.as_mut_ptr()).as_mut_ptr() as *mut u8
-        };
-
-        let mut pos: usize = 0;
-        for row in 0..self.dimension {
-            unsafe {
-                ptr::write(buffer_ptr.add(pos), b'[');
-                pos += 1;
-
-                ptr::write(buffer_ptr.add(pos), b' ');
-                pos += 1;
-
-                for _col in 0..(self.dimension - 1) {
-                    ptr::write(buffer_ptr.add(pos), b'0');
-                    pos += 1;
-
-                    ptr::write(buffer_ptr.add(pos), b',');
-                    pos += 1;
-
-                    ptr::write(buffer_ptr.add(pos), b' ');
-                    pos += 1;
-                }
-
-                ptr::write(buffer_ptr.add(pos), b'0');
-                pos += 1;
-
-                ptr::write(buffer_ptr.add(pos), b' ');
-                pos += 1;
-
-                ptr::write(buffer_ptr.add(pos), b']');
-                pos += 1;
-
-                if row != self.dimension - 1 {
-                    ptr::write(buffer_ptr.add(pos), b'\r');
-                    pos += 1;
-
-                    ptr::write(buffer_ptr.add(pos), b'\n');
-                    pos += 1;
-                }
-            }
-        }
-
-        let buffer = unsafe { buffer.assume_init() };
-
-        let chars_per_row = EXTRA_CHARS_PER_ROW_TOTAL + self.dimension as usize * CHARS_PER_ENTRY;
-
-        for (col, row_table) in self.edges_table.iter() {
-            for row in row_table.iter() {
-                pos = *row as usize * chars_per_row
-                    + EXTRA_CHARS_PER_ROW_AT_FRONT
-                    + CHARS_PER_ENTRY * *col as usize;
-
-                unsafe {
-                    *buffer_ptr.add(pos) = b'1';
-                }
-            }
-        }
-
-        let buffer = unsafe { String::from(std::str::from_utf8_unchecked(&buffer[..])) };
-
-        buffer
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(&self.try_to_string().map_err(|_| fmt::Error)?)
     }
 }
 

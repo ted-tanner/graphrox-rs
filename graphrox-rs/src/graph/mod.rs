@@ -7,6 +7,8 @@ pub mod iter {
 }
 
 pub(crate) mod graph_traits {
+    use crate::error::GraphRoxError;
+
     /// A trait for basic graph operations that do not mutate graphs.
     pub trait GraphRepresentation {
         /// Returns `true` if the graph is undirected and `false` if the graph is directed.
@@ -60,9 +62,9 @@ pub(crate) mod graph_traits {
         /// graph.add_edge(1, 1);
         ///
         /// let expected = "[ 0, 1 ]\r\n[ 0, 1 ]";
-        /// assert_eq!(graph.matrix_string().as_str(), expected);
+        /// assert_eq!(graph.matrix_string().unwrap().as_str(), expected);
         /// ```
-        fn matrix_string(&self) -> String;
+        fn matrix_string(&self) -> Result<String, GraphRoxError>;
 
         /// Returns `true` if the specified edge exists in the graph.
         ///
@@ -87,7 +89,7 @@ pub(crate) mod graph_traits {
         /// graph.add_vertex(0, Some(&[1, 2, 6]));
         /// graph.add_vertex(3, Some(&[1, 2]));
         ///
-        /// let graph_bytes = graph.to_bytes();
+        /// let graph_bytes = graph.to_bytes().unwrap();
         /// let graph_from_bytes = Graph::try_from(graph_bytes.as_slice()).unwrap();
         ///
         /// assert_eq!(graph.edge_count(), graph_from_bytes.edge_count());
@@ -96,6 +98,6 @@ pub(crate) mod graph_traits {
         ///     assert!(graph.does_edge_exist(from_vertex, to_vertex));
         /// }
         /// ```
-        fn to_bytes(&self) -> Vec<u8>;
+        fn to_bytes(&self) -> Result<Vec<u8>, GraphRoxError>;
     }
 }

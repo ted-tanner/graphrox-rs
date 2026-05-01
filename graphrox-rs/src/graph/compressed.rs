@@ -1,8 +1,5 @@
-use std::convert::{Into, TryFrom};
-use std::mem;
+use std::convert::TryFrom;
 use std::num::Wrapping;
-use std::ptr;
-use std::slice;
 
 use crate::error::GraphRoxError;
 use crate::graph::graph_traits::GraphRepresentation;
@@ -12,18 +9,7 @@ use crate::util::{self, constants::*};
 
 const COMPRESSED_GRAPH_BYTES_MAGIC_NUMBER: u32 = 0x71ff7aed;
 const COMPRESSED_GRAPH_BYTES_VERSION: u32 = 2;
-
-#[repr(C, packed)]
-struct CompressedGraphBytesHeader {
-    magic_number: u32,
-    version: u32,
-    adjacency_matrix_dimension: u64,
-    adjacency_matrix_entry_count: u64,
-    edge_count: u64,
-    vertex_count: u64,
-    is_undirected: u8,
-    compression_level: u8,
-}
+const COMPRESSED_GRAPH_BYTES_HEADER_SIZE: usize = 42;
 
 /// An efficient representation of a network graph. Graphs are stored as a sparse edge list
 /// using a HashMap of HashMaps that maps a column to a row and then a row to an entry. Each
@@ -99,7 +85,9 @@ impl CompressedGraph {
         };
 
         // Set graph adjacency matrix dimension
-        graph.add_vertex(self.vertex_count - 1, None);
+        if self.vertex_count > 0 {
+            graph.add_vertex(self.vertex_count - 1, None);
+        }
 
         for (entry, col, row) in &self.adjacency_matrix {
             let mut curr = Wrapping(1);
@@ -189,8 +177,8 @@ impl GraphRepresentation for CompressedGraph {
         self.edge_count
     }
 
-    fn matrix_string(&self) -> String {
-        self.adjacency_matrix.to_string()
+    fn matrix_string(&self) -> Result<String, GraphRoxError> {
+        self.adjacency_matrix.to_string_with_precision(0)
     }
 
     fn does_edge_exist(&self, from_vertex_id: u64, to_vertex_id: u64) -> bool {
@@ -212,75 +200,47 @@ impl GraphRepresentation for CompressedGraph {
         bit_at_pos == 1
     }
 
-    fn to_bytes(&self) -> Vec<u8> {
-        let header = CompressedGraphBytesHeader {
-            magic_number: COMPRESSED_GRAPH_BYTES_MAGIC_NUMBER.to_be(),
-            version: COMPRESSED_GRAPH_BYTES_VERSION.to_be(),
-            adjacency_matrix_dimension: self.adjacency_matrix.dimension().to_be(),
-            adjacency_matrix_entry_count: self.adjacency_matrix.entry_count().to_be(),
-            edge_count: self.edge_count.to_be(),
-            vertex_count: self.vertex_count.to_be(),
-            is_undirected: u8::from(self.is_undirected).to_be(),
-            compression_level: self.compression_level.to_be(),
-        };
+    fn to_bytes(&self) -> Result<Vec<u8>, GraphRoxError> {
+        let entry_bytes = usize::try_from(self.adjacency_matrix.entry_count())
+            .ok()
+            .and_then(|count| count.checked_mul(3))
+            .and_then(|count| count.checked_mul(std::mem::size_of::<u64>()))
+            .ok_or_else(|| {
+                GraphRoxError::CapacityOverflow(String::from(
+                    "CompressedGraph byte size overflowed",
+                ))
+            })?;
+        let buffer_size = COMPRESSED_GRAPH_BYTES_HEADER_SIZE
+            .checked_add(entry_bytes)
+            .ok_or_else(|| {
+                GraphRoxError::CapacityOverflow(String::from(
+                    "CompressedGraph byte size overflowed",
+                ))
+            })?;
 
-        let buffer_size = (self.adjacency_matrix.entry_count() * 3) as usize
-            * mem::size_of::<u64>()
-            + mem::size_of::<CompressedGraphBytesHeader>();
+        let mut buffer = Vec::new();
+        buffer.try_reserve_exact(buffer_size).map_err(|_| {
+            GraphRoxError::CapacityOverflow(String::from(
+                "Unable to allocate compressed graph bytes",
+            ))
+        })?;
 
-        let mut buffer = mem::MaybeUninit::new(Vec::with_capacity(buffer_size));
-
-        let buffer_ptr = unsafe {
-            (*buffer.as_mut_ptr()).set_len((*buffer.as_mut_ptr()).capacity());
-            (*buffer.as_mut_ptr()).as_mut_ptr() as *mut u8
-        };
-
-        let header_bytes = unsafe { util::as_byte_slice(&header) };
-
-        let mut pos: usize = 0;
-
-        for byte in header_bytes {
-            unsafe {
-                ptr::write(buffer_ptr.add(pos), *byte);
-                pos += 1;
-            }
-        }
+        buffer.extend_from_slice(&COMPRESSED_GRAPH_BYTES_MAGIC_NUMBER.to_be_bytes());
+        buffer.extend_from_slice(&COMPRESSED_GRAPH_BYTES_VERSION.to_be_bytes());
+        buffer.extend_from_slice(&self.adjacency_matrix.dimension().to_be_bytes());
+        buffer.extend_from_slice(&self.adjacency_matrix.entry_count().to_be_bytes());
+        buffer.extend_from_slice(&self.edge_count.to_be_bytes());
+        buffer.extend_from_slice(&self.vertex_count.to_be_bytes());
+        buffer.push(u8::from(self.is_undirected));
+        buffer.push(self.compression_level);
 
         for (entry, col, row) in &self.adjacency_matrix {
-            let entry_be = entry.to_be();
-            let col_be = col.to_be();
-            let row_be = row.to_be();
-
-            unsafe {
-                let entry_bytes = util::as_byte_slice(&entry_be);
-                let col_bytes = util::as_byte_slice(&col_be);
-                let row_bytes = util::as_byte_slice(&row_be);
-
-                for byte in entry_bytes {
-                    ptr::write(buffer_ptr.add(pos), *byte);
-                    pos += 1;
-                }
-
-                for byte in col_bytes {
-                    ptr::write(buffer_ptr.add(pos), *byte);
-                    pos += 1;
-                }
-
-                for byte in row_bytes {
-                    ptr::write(buffer_ptr.add(pos), *byte);
-                    pos += 1;
-                }
-            }
+            buffer.extend_from_slice(&entry.to_be_bytes());
+            buffer.extend_from_slice(&col.to_be_bytes());
+            buffer.extend_from_slice(&row.to_be_bytes());
         }
 
-        unsafe { buffer.assume_init() }
-    }
-}
-
-#[allow(clippy::from_over_into)]
-impl Into<Vec<u8>> for CompressedGraph {
-    fn into(self) -> Vec<u8> {
-        self.to_bytes()
+        Ok(buffer)
     }
 }
 
@@ -288,57 +248,70 @@ impl TryFrom<&[u8]> for CompressedGraph {
     type Error = GraphRoxError;
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
-        const HEADER_SIZE: usize = mem::size_of::<CompressedGraphBytesHeader>();
-
-        if bytes.len() < HEADER_SIZE {
+        if bytes.len() < COMPRESSED_GRAPH_BYTES_HEADER_SIZE {
             return Err(GraphRoxError::InvalidFormat(String::from(
                 "Slice is too short to contain CompressedGraph header",
             )));
         }
 
-        let (head, header_slice, _) =
-            unsafe { bytes[0..HEADER_SIZE].align_to::<CompressedGraphBytesHeader>() };
+        let magic_number = read_u32_be(bytes, 0)?;
+        let version = read_u32_be(bytes, 4)?;
+        let adjacency_matrix_dimension = read_u64_be(bytes, 8)?;
+        let adjacency_matrix_entry_count = read_u64_be(bytes, 16)?;
+        let edge_count = read_u64_be(bytes, 24)?;
+        let vertex_count = read_u64_be(bytes, 32)?;
+        let is_undirected = bytes[40];
+        let compression_level = bytes[41];
 
-        if !head.is_empty() {
-            return Err(GraphRoxError::InvalidFormat(String::from(
-                "CompressedGraph header bytes were unaligned",
-            )));
-        }
-
-        let header = CompressedGraphBytesHeader {
-            magic_number: u32::from_be(header_slice[0].magic_number),
-            version: u32::from_be(header_slice[0].version),
-            adjacency_matrix_dimension: u64::from_be(header_slice[0].adjacency_matrix_dimension),
-            adjacency_matrix_entry_count: u64::from_be(
-                header_slice[0].adjacency_matrix_entry_count,
-            ),
-            edge_count: u64::from_be(header_slice[0].edge_count),
-            vertex_count: u64::from_be(header_slice[0].vertex_count),
-            is_undirected: u8::from_be(header_slice[0].is_undirected),
-            compression_level: util::clamp_compression_level(u8::from_be(
-                header_slice[0].compression_level,
-            )),
-        };
-
-        if header.magic_number != COMPRESSED_GRAPH_BYTES_MAGIC_NUMBER {
+        if magic_number != COMPRESSED_GRAPH_BYTES_MAGIC_NUMBER {
             return Err(GraphRoxError::InvalidFormat(String::from(
                 "Incorrect magic number",
             )));
         }
 
-        if header.version < COMPRESSED_GRAPH_BYTES_VERSION {
+        if version < COMPRESSED_GRAPH_BYTES_VERSION {
             return Err(GraphRoxError::InvalidFormat(String::from(
                 "Outdated CompressedGraph version",
             )));
-        } else if header.version != COMPRESSED_GRAPH_BYTES_VERSION {
+        } else if version != COMPRESSED_GRAPH_BYTES_VERSION {
             return Err(GraphRoxError::InvalidFormat(String::from(
                 "Unrecognized CompressedGraph version",
             )));
         }
 
-        let expected_buffer_size = (header.adjacency_matrix_entry_count * 3) as usize
-            * mem::size_of::<u64>()
-            + HEADER_SIZE;
+        if is_undirected > 1 {
+            return Err(GraphRoxError::InvalidFormat(String::from(
+                "Invalid compressed graph direction flag",
+            )));
+        }
+
+        if !(1..=64).contains(&compression_level) {
+            return Err(GraphRoxError::InvalidFormat(String::from(
+                "Invalid compression level",
+            )));
+        }
+
+        let expected_dimension = compressed_matrix_dimension(vertex_count);
+        if adjacency_matrix_dimension != expected_dimension {
+            return Err(GraphRoxError::InvalidFormat(String::from(
+                "CompressedGraph matrix dimension does not match vertex count",
+            )));
+        }
+
+        if adjacency_matrix_dimension == 0 && adjacency_matrix_entry_count != 0 {
+            return Err(GraphRoxError::InvalidFormat(String::from(
+                "CompressedGraph with zero matrix dimension cannot contain entries",
+            )));
+        }
+
+        let expected_buffer_size = usize::try_from(adjacency_matrix_entry_count)
+            .ok()
+            .and_then(|count| count.checked_mul(3))
+            .and_then(|count| count.checked_mul(std::mem::size_of::<u64>()))
+            .and_then(|size| size.checked_add(COMPRESSED_GRAPH_BYTES_HEADER_SIZE))
+            .ok_or_else(|| {
+                GraphRoxError::InvalidFormat(String::from("CompressedGraph byte size overflowed"))
+            })?;
 
         #[allow(clippy::comparison_chain)]
         if bytes.len() < expected_buffer_size {
@@ -351,37 +324,134 @@ impl TryFrom<&[u8]> for CompressedGraph {
             )));
         }
 
-        let mut compressed_graph_builder = CompressedGraphBuilder::new(
-            header.is_undirected == 1,
-            header.vertex_count,
-            header.compression_level,
-        );
+        let mut compressed_graph_builder =
+            CompressedGraphBuilder::new(is_undirected == 1, vertex_count, compression_level);
 
-        let mut pos = HEADER_SIZE;
-        let bytes_ptr = bytes.as_ptr();
+        let mut pos = COMPRESSED_GRAPH_BYTES_HEADER_SIZE;
+        let mut parsed_edge_count = 0u64;
 
         while pos < expected_buffer_size {
-            let entry_slice =
-                unsafe { slice::from_raw_parts(bytes_ptr.add(pos), mem::size_of::<u64>()) };
-            pos += mem::size_of::<u64>();
+            let entry = read_u64_be(bytes, pos)?;
+            pos += std::mem::size_of::<u64>();
 
-            let col_slice =
-                unsafe { slice::from_raw_parts(bytes_ptr.add(pos), mem::size_of::<u64>()) };
-            pos += mem::size_of::<u64>();
+            let col = read_u64_be(bytes, pos)?;
+            pos += std::mem::size_of::<u64>();
 
-            let row_slice =
-                unsafe { slice::from_raw_parts(bytes_ptr.add(pos), mem::size_of::<u64>()) };
-            pos += mem::size_of::<u64>();
+            let row = read_u64_be(bytes, pos)?;
+            pos += std::mem::size_of::<u64>();
 
-            let entry = unsafe { u64::from_be_bytes(entry_slice.try_into().unwrap_unchecked()) };
-            let col = unsafe { u64::from_be_bytes(col_slice.try_into().unwrap_unchecked()) };
-            let row = unsafe { u64::from_be_bytes(row_slice.try_into().unwrap_unchecked()) };
+            if entry == 0 {
+                return Err(GraphRoxError::InvalidFormat(String::from(
+                    "CompressedGraph entry cannot be zero",
+                )));
+            }
 
-            compressed_graph_builder.add_compressed_matrix_entry(entry, col, row, None);
+            if col >= adjacency_matrix_dimension || row >= adjacency_matrix_dimension {
+                return Err(GraphRoxError::InvalidFormat(String::from(
+                    "CompressedGraph entry exceeds matrix dimension",
+                )));
+            }
+
+            validate_compressed_entry_bounds(entry, col, row, vertex_count)?;
+            let hamming_weight = u64::from(entry.count_ones());
+            parsed_edge_count = parsed_edge_count
+                .checked_add(hamming_weight)
+                .ok_or_else(|| {
+                    GraphRoxError::InvalidFormat(String::from(
+                        "CompressedGraph edge count overflowed",
+                    ))
+                })?;
+
+            compressed_graph_builder.add_compressed_matrix_entry(
+                entry,
+                col,
+                row,
+                Some(hamming_weight),
+            );
+        }
+
+        if parsed_edge_count != edge_count {
+            return Err(GraphRoxError::InvalidFormat(String::from(
+                "CompressedGraph edge count does not match header",
+            )));
         }
 
         unsafe { Ok(compressed_graph_builder.finish()) }
     }
+}
+
+fn read_u32_be(bytes: &[u8], offset: usize) -> Result<u32, GraphRoxError> {
+    let end = offset
+        .checked_add(std::mem::size_of::<u32>())
+        .ok_or_else(|| {
+            GraphRoxError::InvalidFormat(String::from("CompressedGraph byte offset overflowed"))
+        })?;
+    let slice = bytes.get(offset..end).ok_or_else(|| {
+        GraphRoxError::InvalidFormat(String::from("Slice is too short for CompressedGraph field"))
+    })?;
+    Ok(u32::from_be_bytes(slice.try_into().map_err(|_| {
+        GraphRoxError::InvalidFormat(String::from("Invalid CompressedGraph u32 field"))
+    })?))
+}
+
+fn read_u64_be(bytes: &[u8], offset: usize) -> Result<u64, GraphRoxError> {
+    let end = offset
+        .checked_add(std::mem::size_of::<u64>())
+        .ok_or_else(|| {
+            GraphRoxError::InvalidFormat(String::from("CompressedGraph byte offset overflowed"))
+        })?;
+    let slice = bytes.get(offset..end).ok_or_else(|| {
+        GraphRoxError::InvalidFormat(String::from("Slice is too short for CompressedGraph field"))
+    })?;
+    Ok(u64::from_be_bytes(slice.try_into().map_err(|_| {
+        GraphRoxError::InvalidFormat(String::from("Invalid CompressedGraph u64 field"))
+    })?))
+}
+
+fn compressed_matrix_dimension(vertex_count: u64) -> u64 {
+    let mut dimension = vertex_count / COMPRESSION_BLOCK_DIMENSION;
+    if !vertex_count.is_multiple_of(COMPRESSION_BLOCK_DIMENSION) || dimension == 0 {
+        dimension += 1;
+    }
+    dimension
+}
+
+fn validate_compressed_entry_bounds(
+    entry: u64,
+    col: u64,
+    row: u64,
+    vertex_count: u64,
+) -> Result<(), GraphRoxError> {
+    for bit in 0..64 {
+        if ((entry >> bit) & 1) == 0 {
+            continue;
+        }
+
+        let absolute_col = col
+            .checked_mul(COMPRESSION_BLOCK_DIMENSION)
+            .and_then(|base| base.checked_add(bit % COMPRESSION_BLOCK_DIMENSION))
+            .ok_or_else(|| {
+                GraphRoxError::InvalidFormat(String::from(
+                    "CompressedGraph column coordinate overflowed",
+                ))
+            })?;
+        let absolute_row = row
+            .checked_mul(COMPRESSION_BLOCK_DIMENSION)
+            .and_then(|base| base.checked_add(bit / COMPRESSION_BLOCK_DIMENSION))
+            .ok_or_else(|| {
+                GraphRoxError::InvalidFormat(String::from(
+                    "CompressedGraph row coordinate overflowed",
+                ))
+            })?;
+
+        if absolute_col >= vertex_count || absolute_row >= vertex_count {
+            return Err(GraphRoxError::InvalidFormat(String::from(
+                "CompressedGraph entry contains edge outside vertex count",
+            )));
+        }
+    }
+
+    Ok(())
 }
 
 /// A tool for manually constructing `graphrox::CompressedGraph`s.
@@ -452,7 +522,7 @@ impl CompressedGraphBuilder {
         // matrix can be compressed down to an 8x8 matrix rather than a 9x9 one.
         // The adjacency_matrix.set_entry() function will add 1 to what is passed
         // the highest entry index to find its dimension.
-        if vertex_count % COMPRESSION_BLOCK_DIMENSION == 0 && column_count != 0 {
+        if vertex_count.is_multiple_of(COMPRESSION_BLOCK_DIMENSION) && column_count != 0 {
             column_count -= 1;
         };
 
@@ -526,11 +596,12 @@ impl CompressedGraphBuilder {
         row: u64,
         hamming_weight: Option<u64>,
     ) {
-        self.graph.edge_count += if let Some(w) = hamming_weight {
+        let additional_edges = if let Some(w) = hamming_weight {
             w
         } else {
             find_hamming_weight(entry)
         };
+        self.graph.edge_count = self.graph.edge_count.saturating_add(additional_edges);
 
         self.graph.adjacency_matrix.set_entry(entry, col, row);
     }
@@ -572,18 +643,7 @@ impl CompressedGraphBuilder {
 
 #[inline]
 fn find_hamming_weight(num: u64) -> u64 {
-    let mut weight = 0;
-    let mut curr = Wrapping(1);
-
-    for _ in 0..64 {
-        if num & curr.0 == curr.0 {
-            weight += 1;
-        }
-
-        curr <<= 1;
-    }
-
-    weight
+    u64::from(num.count_ones())
 }
 
 #[cfg(test)]
@@ -650,7 +710,7 @@ mod tests {
         let graph = unsafe { graph.finish() };
 
         let expected = "[   0,   0,   0 ]\r\n[   0, 300,  10 ]\r\n[   0,   0,   0 ]";
-        assert_eq!(expected, graph.matrix_string());
+        assert_eq!(expected, graph.matrix_string().unwrap());
 
         let mut graph = CompressedGraphBuilder::new(false, 27, 6);
         graph.add_compressed_matrix_entry(9, 1, 1, None);
@@ -658,7 +718,7 @@ mod tests {
         let graph = unsafe { graph.finish() };
 
         let expected = "[ 0, 0, 0, 0 ]\r\n[ 0, 9, 0, 0 ]\r\n[ 0, 0, 0, 0 ]\r\n[ 0, 0, 0, 0 ]";
-        assert_eq!(expected, graph.matrix_string());
+        assert_eq!(expected, graph.matrix_string().unwrap());
     }
 
     #[test]
@@ -694,7 +754,7 @@ mod tests {
         graph.add_compressed_matrix_entry(8, 4, 3, None);
         let graph = unsafe { graph.finish() };
 
-        let bytes = graph.to_bytes();
+        let bytes = graph.to_bytes().unwrap();
         let graph_from_bytes = CompressedGraph::try_from(bytes.as_slice()).unwrap();
 
         assert_eq!(graph.is_undirected, graph_from_bytes.is_undirected);
@@ -724,6 +784,28 @@ mod tests {
         for entry in &graph_from_bytes.adjacency_matrix {
             assert!(graph_matrix_entries.contains(&entry));
         }
+    }
+
+    #[test]
+    fn test_compressed_graph_from_invalid_bytes() {
+        assert!(CompressedGraph::try_from(&[][..]).is_err());
+
+        let mut graph = CompressedGraphBuilder::new(false, 16, 18);
+        graph.add_compressed_matrix_entry(1, 0, 0, None);
+        let graph = unsafe { graph.finish() };
+
+        let mut bytes = graph.to_bytes().unwrap();
+        bytes[40] = 2;
+        assert!(CompressedGraph::try_from(bytes.as_slice()).is_err());
+
+        let mut bytes = graph.to_bytes().unwrap();
+        bytes[24..32].copy_from_slice(&999u64.to_be_bytes());
+        assert!(CompressedGraph::try_from(bytes.as_slice()).is_err());
+
+        let mut graph = CompressedGraphBuilder::new(false, 1, 18);
+        graph.add_compressed_matrix_entry(2, 0, 0, None);
+        let graph = unsafe { graph.finish() };
+        assert!(CompressedGraph::try_from(graph.to_bytes().unwrap().as_slice()).is_err());
     }
 
     #[test]

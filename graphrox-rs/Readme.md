@@ -250,7 +250,7 @@ graph.add_vertex(0, Some(&[1, 2, 6]));
 graph.add_vertex(3, Some(&[1, 2]));
 
 // Convert the graph to bytes
-let graph_bytes = graph.to_bytes();
+let graph_bytes = graph.to_bytes().unwrap();
 
 // Save the bytes to a file
 fs::write("my-graph.gphrx", graph_bytes).unwrap();
@@ -269,7 +269,7 @@ for (from_vertex, to_vertex) in &graph_from_bytes {
 
 // Compressed graphs can be converted to bytes as well
 let compressed_graph = graph.compress(0.05);
-fs::write("compressed-graph.cgphrx", compressed_graph.to_bytes()).unwrap();
+fs::write("compressed-graph.cgphrx", compressed_graph.to_bytes().unwrap()).unwrap();
 
 // Read the compressed_graph from a file (then delete the file)
 let compressed_graph_file = fs::read("compressed-graph.cgphrx").unwrap();

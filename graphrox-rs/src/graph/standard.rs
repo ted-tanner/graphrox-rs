@@ -1,7 +1,4 @@
-use std::convert::{Into, TryFrom};
-use std::mem;
-use std::ptr;
-use std::slice;
+use std::convert::TryFrom;
 
 use crate::error::GraphRoxError;
 use crate::graph::compressed::{CompressedGraph, CompressedGraphBuilder};
@@ -12,16 +9,7 @@ use crate::util::{self, constants::*};
 
 const GRAPH_BYTES_MAGIC_NUMBER: u32 = 0x7ae71ffd;
 const GRAPH_BYTES_VERSION: u32 = 1;
-
-#[repr(C, packed)]
-struct GraphBytesHeader {
-    magic_number: u32,
-    version: u32,
-    adjacency_matrix_dimension: u64,
-    adjacency_matrix_entry_count: u64,
-    is_undirected: u8,
-    is_weighted: u8,
-}
+const GRAPH_BYTES_HEADER_SIZE: usize = 26;
 
 /// A representation of a network graph. Graphs are stored as a sparse edge list using a
 /// HashMap of HashSets.
@@ -428,7 +416,7 @@ impl StandardGraph {
     ///
     /// let avg_pool_matrix = graph.find_avg_pool_matrix(2);
     ///
-    /// println!("{}", graph.matrix_string());
+    /// println!("{}", graph.matrix_string().unwrap());
     /// println!();
     /// println!("{}", avg_pool_matrix.to_string());
     ///
@@ -463,7 +451,7 @@ impl StandardGraph {
             block_dimension
         };
 
-        let are_edge_blocks_padded = self.vertex_count() % block_dimension != 0;
+        let are_edge_blocks_padded = !self.vertex_count().is_multiple_of(block_dimension);
 
         let mut blocks_per_row = self.vertex_count() / block_dimension;
         if are_edge_blocks_padded {
@@ -479,20 +467,10 @@ impl StandardGraph {
             occurrence_matrix.increment_entry(occurrence_col, occurrence_row);
         }
 
+        let block_multiplier = 1.0 / (block_dimension * block_dimension) as f64;
         let mut avg_pool_matrix = occurrence_matrix;
-
-        // Set dimension
-        avg_pool_matrix.set_entry(0.0, blocks_per_row - 1, 0);
-
-        let block_size = block_dimension * block_dimension;
-        let matrix_ptr = &mut avg_pool_matrix as *mut CsrSquareMatrix<f64>;
-        for (entry, col, row) in &avg_pool_matrix {
-            let new_entry = entry / block_size as f64;
-
-            // This is safe because we are only changing entries in place. We are not adding
-            // or removing entries or anything that might cause issues with the iteration.
-            unsafe { (*matrix_ptr).set_entry(new_entry, col, row) };
-        }
+        avg_pool_matrix.set_minimum_dimension(blocks_per_row);
+        avg_pool_matrix.multiply_entries_by(block_multiplier);
 
         avg_pool_matrix
     }
@@ -533,9 +511,9 @@ impl StandardGraph {
     ///
     /// let approx_graph = graph.approximate(2, 0.5);
     ///
-    /// println!("{}", graph.matrix_string());
+    /// println!("{}", graph.matrix_string().unwrap());
     /// println!();
-    /// println!("{}", approx_graph.matrix_string());
+    /// println!("{}", approx_graph.matrix_string().unwrap());
     ///
     /// /* Ouput:
     ///
@@ -568,7 +546,7 @@ impl StandardGraph {
             block_dimension
         };
 
-        let are_edge_blocks_padded = self.vertex_count() % block_dimension != 0;
+        let are_edge_blocks_padded = !self.vertex_count().is_multiple_of(block_dimension);
 
         let mut blocks_per_row = self.vertex_count() / block_dimension;
         if are_edge_blocks_padded {
@@ -702,8 +680,8 @@ impl GraphRepresentation for StandardGraph {
         self.adjacency_matrix.entry_count()
     }
 
-    fn matrix_string(&self) -> String {
-        self.adjacency_matrix.to_string()
+    fn matrix_string(&self) -> Result<String, GraphRoxError> {
+        self.adjacency_matrix.try_to_string()
     }
 
     fn does_edge_exist(&self, from_vertex_id: u64, to_vertex_id: u64) -> bool {
@@ -712,66 +690,38 @@ impl GraphRepresentation for StandardGraph {
             != 0
     }
 
-    fn to_bytes(&self) -> Vec<u8> {
-        let header = GraphBytesHeader {
-            magic_number: GRAPH_BYTES_MAGIC_NUMBER.to_be(),
-            version: GRAPH_BYTES_VERSION.to_be(),
-            adjacency_matrix_dimension: self.adjacency_matrix.dimension().to_be(),
-            adjacency_matrix_entry_count: self.adjacency_matrix.entry_count().to_be(),
-            is_undirected: u8::from(self.is_undirected).to_be(),
-            is_weighted: 0u8.to_be(),
-        };
+    fn to_bytes(&self) -> Result<Vec<u8>, GraphRoxError> {
+        let edge_bytes = usize::try_from(self.adjacency_matrix.entry_count())
+            .ok()
+            .and_then(|count| count.checked_mul(2))
+            .and_then(|count| count.checked_mul(std::mem::size_of::<u64>()))
+            .ok_or_else(|| {
+                GraphRoxError::CapacityOverflow(String::from("Graph byte size overflowed"))
+            })?;
+        let buffer_size = GRAPH_BYTES_HEADER_SIZE
+            .checked_add(edge_bytes)
+            .ok_or_else(|| {
+                GraphRoxError::CapacityOverflow(String::from("Graph byte size overflowed"))
+            })?;
 
-        let buffer_size = (self.adjacency_matrix.entry_count() * 2) as usize
-            * mem::size_of::<u64>()
-            + mem::size_of::<GraphBytesHeader>();
+        let mut buffer = Vec::new();
+        buffer.try_reserve_exact(buffer_size).map_err(|_| {
+            GraphRoxError::CapacityOverflow(String::from("Unable to allocate graph bytes"))
+        })?;
 
-        let mut buffer = mem::MaybeUninit::new(Vec::with_capacity(buffer_size));
-
-        let buffer_ptr = unsafe {
-            (*buffer.as_mut_ptr()).set_len((*buffer.as_mut_ptr()).capacity());
-            (*buffer.as_mut_ptr()).as_mut_ptr() as *mut u8
-        };
-
-        let header_bytes = unsafe { util::as_byte_slice(&header) };
-
-        let mut pos: usize = 0;
-
-        for byte in header_bytes {
-            unsafe {
-                ptr::write(buffer_ptr.add(pos), *byte);
-                pos += 1;
-            }
-        }
+        buffer.extend_from_slice(&GRAPH_BYTES_MAGIC_NUMBER.to_be_bytes());
+        buffer.extend_from_slice(&GRAPH_BYTES_VERSION.to_be_bytes());
+        buffer.extend_from_slice(&self.adjacency_matrix.dimension().to_be_bytes());
+        buffer.extend_from_slice(&self.adjacency_matrix.entry_count().to_be_bytes());
+        buffer.push(u8::from(self.is_undirected));
+        buffer.push(0);
 
         for (col, row) in &self.adjacency_matrix {
-            let col_be = col.to_be();
-            let row_be = row.to_be();
-
-            unsafe {
-                let col_bytes = util::as_byte_slice(&col_be);
-                let row_bytes = util::as_byte_slice(&row_be);
-
-                for byte in col_bytes {
-                    ptr::write(buffer_ptr.add(pos), *byte);
-                    pos += 1;
-                }
-
-                for byte in row_bytes {
-                    ptr::write(buffer_ptr.add(pos), *byte);
-                    pos += 1;
-                }
-            }
+            buffer.extend_from_slice(&col.to_be_bytes());
+            buffer.extend_from_slice(&row.to_be_bytes());
         }
 
-        unsafe { buffer.assume_init() }
-    }
-}
-
-#[allow(clippy::from_over_into)]
-impl Into<Vec<u8>> for StandardGraph {
-    fn into(self) -> Vec<u8> {
-        self.to_bytes()
+        Ok(buffer)
     }
 }
 
@@ -779,49 +729,57 @@ impl TryFrom<&[u8]> for StandardGraph {
     type Error = GraphRoxError;
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
-        const HEADER_SIZE: usize = mem::size_of::<GraphBytesHeader>();
-
-        if bytes.len() < HEADER_SIZE {
+        if bytes.len() < GRAPH_BYTES_HEADER_SIZE {
             return Err(GraphRoxError::InvalidFormat(String::from(
                 "Slice is too short to contain Graph header",
             )));
         }
 
-        let (head, header_slice, _) =
-            unsafe { bytes[0..HEADER_SIZE].align_to::<GraphBytesHeader>() };
+        let magic_number = read_u32_be(bytes, 0)?;
+        let version = read_u32_be(bytes, 4)?;
+        let adjacency_matrix_dimension = read_u64_be(bytes, 8)?;
+        let adjacency_matrix_entry_count = read_u64_be(bytes, 16)?;
+        let is_undirected = bytes[24];
+        let is_weighted = bytes[25];
 
-        if !head.is_empty() {
-            return Err(GraphRoxError::InvalidFormat(String::from(
-                "Graph header bytes were unaligned",
-            )));
-        }
-
-        let header = GraphBytesHeader {
-            magic_number: u32::from_be(header_slice[0].magic_number),
-            version: u32::from_be(header_slice[0].version),
-            adjacency_matrix_dimension: u64::from_be(header_slice[0].adjacency_matrix_dimension),
-            adjacency_matrix_entry_count: u64::from_be(
-                header_slice[0].adjacency_matrix_entry_count,
-            ),
-            is_undirected: u8::from_be(header_slice[0].is_undirected),
-            is_weighted: u8::from_be(header_slice[0].is_weighted),
-        };
-
-        if header.magic_number != GRAPH_BYTES_MAGIC_NUMBER {
+        if magic_number != GRAPH_BYTES_MAGIC_NUMBER {
             return Err(GraphRoxError::InvalidFormat(String::from(
                 "Incorrect magic number",
             )));
         }
 
-        if header.version != 1u32 {
+        if version != GRAPH_BYTES_VERSION {
             return Err(GraphRoxError::InvalidFormat(String::from(
                 "Unrecognized Graph version",
             )));
         }
 
-        let expected_buffer_size = (header.adjacency_matrix_entry_count * 2) as usize
-            * mem::size_of::<u64>()
-            + HEADER_SIZE;
+        if is_undirected > 1 {
+            return Err(GraphRoxError::InvalidFormat(String::from(
+                "Invalid graph direction flag",
+            )));
+        }
+
+        if is_weighted != 0 {
+            return Err(GraphRoxError::InvalidFormat(String::from(
+                "Weighted graphs are not supported",
+            )));
+        }
+
+        if adjacency_matrix_dimension == 0 && adjacency_matrix_entry_count != 0 {
+            return Err(GraphRoxError::InvalidFormat(String::from(
+                "Graph with zero dimension cannot contain edges",
+            )));
+        }
+
+        let expected_buffer_size = usize::try_from(adjacency_matrix_entry_count)
+            .ok()
+            .and_then(|count| count.checked_mul(2))
+            .and_then(|count| count.checked_mul(std::mem::size_of::<u64>()))
+            .and_then(|size| size.checked_add(GRAPH_BYTES_HEADER_SIZE))
+            .ok_or_else(|| {
+                GraphRoxError::InvalidFormat(String::from("Graph byte size overflowed"))
+            })?;
 
         #[allow(clippy::comparison_chain)]
         if bytes.len() < expected_buffer_size {
@@ -834,35 +792,69 @@ impl TryFrom<&[u8]> for StandardGraph {
             )));
         }
 
-        let mut graph = if header.is_undirected == 0 {
+        let mut graph = if is_undirected == 0 {
             Self::new_directed()
         } else {
             Self::new_undirected()
         };
 
-        let mut pos = HEADER_SIZE;
-        let bytes_ptr = bytes.as_ptr();
+        let mut pos = GRAPH_BYTES_HEADER_SIZE;
 
         while pos < expected_buffer_size {
-            let col_slice =
-                unsafe { slice::from_raw_parts(bytes_ptr.add(pos), mem::size_of::<u64>()) };
-            pos += mem::size_of::<u64>();
+            let col = read_u64_be(bytes, pos)?;
+            pos += std::mem::size_of::<u64>();
 
-            let row_slice =
-                unsafe { slice::from_raw_parts(bytes_ptr.add(pos), mem::size_of::<u64>()) };
-            pos += mem::size_of::<u64>();
+            let row = read_u64_be(bytes, pos)?;
+            pos += std::mem::size_of::<u64>();
 
-            let col = unsafe { u64::from_be_bytes(col_slice.try_into().unwrap_unchecked()) };
-            let row = unsafe { u64::from_be_bytes(row_slice.try_into().unwrap_unchecked()) };
-
+            if col >= adjacency_matrix_dimension || row >= adjacency_matrix_dimension {
+                return Err(GraphRoxError::InvalidFormat(String::from(
+                    "Graph edge exceeds matrix dimension",
+                )));
+            }
             graph.add_edge(col, row);
         }
 
-        // Set the adjacency matrix dimension (vertex IDs are indexed from zero, so subtract 1)
-        graph.add_vertex(header.adjacency_matrix_dimension - 1, None);
+        if graph.edge_count() != adjacency_matrix_entry_count {
+            return Err(GraphRoxError::InvalidFormat(String::from(
+                "Graph edge count does not match header",
+            )));
+        }
+
+        if adjacency_matrix_dimension > 0 {
+            graph.add_vertex(adjacency_matrix_dimension - 1, None);
+        }
 
         Ok(graph)
     }
+}
+
+fn read_u32_be(bytes: &[u8], offset: usize) -> Result<u32, GraphRoxError> {
+    let end = offset
+        .checked_add(std::mem::size_of::<u32>())
+        .ok_or_else(|| {
+            GraphRoxError::InvalidFormat(String::from("Graph byte offset overflowed"))
+        })?;
+    let slice = bytes.get(offset..end).ok_or_else(|| {
+        GraphRoxError::InvalidFormat(String::from("Slice is too short for Graph field"))
+    })?;
+    Ok(u32::from_be_bytes(slice.try_into().map_err(|_| {
+        GraphRoxError::InvalidFormat(String::from("Invalid Graph u32 field"))
+    })?))
+}
+
+fn read_u64_be(bytes: &[u8], offset: usize) -> Result<u64, GraphRoxError> {
+    let end = offset
+        .checked_add(std::mem::size_of::<u64>())
+        .ok_or_else(|| {
+            GraphRoxError::InvalidFormat(String::from("Graph byte offset overflowed"))
+        })?;
+    let slice = bytes.get(offset..end).ok_or_else(|| {
+        GraphRoxError::InvalidFormat(String::from("Slice is too short for Graph field"))
+    })?;
+    Ok(u64::from_be_bytes(slice.try_into().map_err(|_| {
+        GraphRoxError::InvalidFormat(String::from("Invalid Graph u64 field"))
+    })?))
 }
 
 impl<'a> IntoIterator for &'a StandardGraph {
@@ -1042,12 +1034,12 @@ mod tests {
         graph.add_edge(2, 2);
 
         let expected = "[ 0, 1, 0 ]\r\n[ 0, 0, 0 ]\r\n[ 1, 1, 1 ]";
-        assert_eq!(expected, graph.matrix_string());
+        assert_eq!(expected, graph.matrix_string().unwrap());
 
         graph.add_vertex(3, None);
 
         let expected = "[ 0, 1, 0, 0 ]\r\n[ 0, 0, 0, 0 ]\r\n[ 1, 1, 1, 0 ]\r\n[ 0, 0, 0, 0 ]";
-        assert_eq!(expected, graph.matrix_string());
+        assert_eq!(expected, graph.matrix_string().unwrap());
     }
 
     #[test]
@@ -1076,11 +1068,10 @@ mod tests {
         graph.add_edge(0, 2);
         graph.add_edge(2, 2);
 
-        let bytes = graph.to_bytes();
+        let bytes = graph.to_bytes().unwrap();
         assert_eq!(
             bytes.len(),
-            mem::size_of::<GraphBytesHeader>()
-                + mem::size_of::<u64>() * 2 * graph.edge_count() as usize
+            GRAPH_BYTES_HEADER_SIZE + std::mem::size_of::<u64>() * 2 * graph.edge_count() as usize
         );
 
         let graph_from_bytes = StandardGraph::try_from(bytes.as_slice()).unwrap();
@@ -1097,6 +1088,28 @@ mod tests {
         for entry in &graph_from_bytes.adjacency_matrix {
             assert!(graph_matrix_entries.contains(&entry));
         }
+    }
+
+    #[test]
+    fn test_standard_graph_from_invalid_bytes() {
+        assert!(StandardGraph::try_from(&[][..]).is_err());
+
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&GRAPH_BYTES_MAGIC_NUMBER.to_be_bytes());
+        bytes.extend_from_slice(&GRAPH_BYTES_VERSION.to_be_bytes());
+        bytes.extend_from_slice(&0u64.to_be_bytes());
+        bytes.extend_from_slice(&1u64.to_be_bytes());
+        bytes.push(0);
+        bytes.push(0);
+        bytes.extend_from_slice(&0u64.to_be_bytes());
+        bytes.extend_from_slice(&0u64.to_be_bytes());
+        assert!(StandardGraph::try_from(bytes.as_slice()).is_err());
+
+        let mut graph = StandardGraph::new_directed();
+        graph.add_edge(0, 0);
+        let mut bytes = graph.to_bytes().unwrap();
+        bytes[24] = 2;
+        assert!(StandardGraph::try_from(bytes.as_slice()).is_err());
     }
 
     #[test]

@@ -1,11 +1,10 @@
 use std::collections::hash_map::Entry;
 use std::collections::hash_map::Iter as HashMapIter;
 use std::collections::HashMap;
-use std::fmt::{Debug, Display};
+use std::fmt::{self, Debug, Display};
 use std::iter::{IntoIterator, Iterator};
-use std::mem::MaybeUninit;
-use std::ptr;
 
+use crate::error::GraphRoxError;
 use crate::matrix::MatrixRepresentation;
 use crate::util::Numeric;
 
@@ -78,12 +77,19 @@ impl<T: Debug + Display + Numeric> CsrSquareMatrix<T> {
     /// assert_eq!(matrix.get_entry(0, 1), 4.2);
     /// ```
     pub fn increment_entry(&mut self, col: u64, row: u64) {
-        if col + 1 > self.dimension {
-            self.dimension = col + 1
+        let Some(col_dimension) = col.checked_add(1) else {
+            return;
+        };
+        let Some(row_dimension) = row.checked_add(1) else {
+            return;
+        };
+
+        if col_dimension > self.dimension {
+            self.dimension = col_dimension
         }
 
-        if row + 1 > self.dimension {
-            self.dimension = row + 1
+        if row_dimension > self.dimension {
+            self.dimension = row_dimension
         }
 
         let row_table = self.edges_table.entry(col).or_default();
@@ -96,6 +102,13 @@ impl<T: Debug + Display + Numeric> CsrSquareMatrix<T> {
         entry
             .and_modify(|e| *e = e.add_one())
             .or_insert_with(T::one);
+    }
+
+    #[inline]
+    pub(crate) fn set_minimum_dimension(&mut self, dimension: u64) {
+        if self.dimension < dimension {
+            self.dimension = dimension;
+        }
     }
 
     /// Generates a string representation of a `CsrSquareMatrix`. Each entry in the matrix
@@ -112,7 +125,7 @@ impl<T: Debug + Display + Numeric> CsrSquareMatrix<T> {
     /// matrix.set_entry(0.847724, 2, 1);
     /// matrix.set_entry(1.7, 1, 0);
     ///
-    /// println!("{}", matrix.to_string_with_precision(3));
+    /// println!("{}", matrix.to_string_with_precision(3).unwrap());
     ///
     /// /* Output:
     ///
@@ -124,7 +137,7 @@ impl<T: Debug + Display + Numeric> CsrSquareMatrix<T> {
     ///
     /// matrix.set_entry(-10.12, 2, 2);
     ///
-    /// println!("{}", matrix.to_string_with_precision(1));
+    /// println!("{}", matrix.to_string_with_precision(1).unwrap());
     ///
     /// /* Output:
     ///
@@ -134,7 +147,7 @@ impl<T: Debug + Display + Numeric> CsrSquareMatrix<T> {
     ///
     /// */
     /// ```
-    pub fn to_string_with_precision(&self, decimal_digits: usize) -> String {
+    pub fn to_string_with_precision(&self, decimal_digits: usize) -> Result<String, GraphRoxError> {
         const EXTRA_CHARS_PER_ROW_AT_FRONT: usize = 2; // "[ "
         const EXTRA_CHARS_PER_ROW_AT_BACK: usize = 3; // "]\r\n"
 
@@ -143,7 +156,7 @@ impl<T: Debug + Display + Numeric> CsrSquareMatrix<T> {
             EXTRA_CHARS_PER_ROW_AT_FRONT + EXTRA_CHARS_PER_ROW_AT_BACK - 1;
 
         if self.dimension == 0 {
-            return String::new();
+            return Ok(String::new());
         }
 
         let mut highest = T::min();
@@ -190,66 +203,75 @@ impl<T: Debug + Display + Numeric> CsrSquareMatrix<T> {
         let entry_left_padding = entry_size - smallest_entry_chars;
         let chars_per_entry = entry_size + 2;
 
-        let buffer_size = EXTRA_CHARS_PER_ROW_TOTAL * self.dimension as usize
-            + chars_per_entry * (self.dimension * self.dimension) as usize
-            - 2;
+        let dimension = usize::try_from(self.dimension).map_err(|_| {
+            GraphRoxError::CapacityOverflow(String::from(
+                "Matrix dimension does not fit in platform usize",
+            ))
+        })?;
+        let matrix_entry_count = dimension.checked_mul(dimension).ok_or_else(|| {
+            GraphRoxError::CapacityOverflow(String::from("Matrix string size overflowed"))
+        })?;
+        let buffer_size = EXTRA_CHARS_PER_ROW_TOTAL
+            .checked_mul(dimension)
+            .and_then(|rows| {
+                chars_per_entry
+                    .checked_mul(matrix_entry_count)?
+                    .checked_add(rows)
+            })
+            .and_then(|size| size.checked_sub(2))
+            .ok_or_else(|| {
+                GraphRoxError::CapacityOverflow(String::from("Matrix string size overflowed"))
+            })?;
 
-        let mut buffer = MaybeUninit::new(Vec::with_capacity(buffer_size));
-
-        let buffer_ptr = unsafe {
-            (*buffer.as_mut_ptr()).set_len((*buffer.as_mut_ptr()).capacity());
-            (*buffer.as_mut_ptr()).as_mut_ptr() as *mut u8
-        };
+        let mut buffer = Vec::new();
+        buffer.try_reserve_exact(buffer_size).map_err(|_| {
+            GraphRoxError::CapacityOverflow(String::from("Unable to allocate matrix string"))
+        })?;
+        buffer.resize(buffer_size, 0);
 
         let mut pos = 0;
         for row in 0..self.dimension {
-            unsafe {
-                ptr::write(buffer_ptr.add(pos), b'[');
-                pos += 1;
+            buffer[pos] = b'[';
+            pos += 1;
 
-                ptr::write(buffer_ptr.add(pos), b' ');
-                pos += 1;
+            buffer[pos] = b' ';
+            pos += 1;
 
-                for col in 0..self.dimension {
-                    for char_pos in 0..entry_size {
-                        let c = if char_pos < entry_left_padding {
-                            b' '
-                        } else if char_pos == entry_left_padding + 1 {
-                            b'.'
-                        } else {
-                            b'0'
-                        };
-
-                        ptr::write(buffer_ptr.add(pos), c);
-                        pos += 1;
-                    }
-
-                    if col != self.dimension - 1 {
-                        ptr::write(buffer_ptr.add(pos), b',');
-                        pos += 1;
-                    }
-
-                    ptr::write(buffer_ptr.add(pos), b' ');
+            for col in 0..self.dimension {
+                for char_pos in 0..entry_size {
+                    buffer[pos] = if char_pos < entry_left_padding {
+                        b' '
+                    } else if char_pos == entry_left_padding + 1 {
+                        b'.'
+                    } else {
+                        b'0'
+                    };
                     pos += 1;
                 }
 
-                ptr::write(buffer_ptr.add(pos), b']');
-                pos += 1;
-
-                if row != self.dimension - 1 {
-                    ptr::write(buffer_ptr.add(pos), b'\r');
-                    pos += 1;
-
-                    ptr::write(buffer_ptr.add(pos), b'\n');
+                if col != self.dimension - 1 {
+                    buffer[pos] = b',';
                     pos += 1;
                 }
+
+                buffer[pos] = b' ';
+                pos += 1;
+            }
+
+            buffer[pos] = b']';
+            pos += 1;
+
+            if row != self.dimension - 1 {
+                buffer[pos] = b'\r';
+                pos += 1;
+
+                buffer[pos] = b'\n';
+                pos += 1;
             }
         }
 
-        let buffer = unsafe { buffer.assume_init() };
-
         // Minus one for the removed trailing comma
-        let chars_per_row = EXTRA_CHARS_PER_ROW_TOTAL + self.dimension as usize * chars_per_entry;
+        let chars_per_row = EXTRA_CHARS_PER_ROW_TOTAL + dimension * chars_per_entry;
 
         for (col, row_table) in self.edges_table.iter() {
             for (row, value) in row_table.iter() {
@@ -283,17 +305,26 @@ impl<T: Debug + Display + Numeric> CsrSquareMatrix<T> {
                 let num = num.as_bytes();
 
                 for b in num {
-                    unsafe {
-                        *buffer_ptr.add(pos) = *b;
-                    }
+                    buffer[pos] = *b;
                     pos += 1;
                 }
             }
         }
 
-        let buffer = unsafe { String::from(std::str::from_utf8_unchecked(&buffer[..])) };
+        String::from_utf8(buffer).map_err(|_| {
+            GraphRoxError::InvalidFormat(String::from("Generated matrix string was not UTF-8"))
+        })
+    }
+}
 
-        buffer
+impl CsrSquareMatrix<f64> {
+    #[inline]
+    pub(crate) fn multiply_entries_by(&mut self, multiplier: f64) {
+        for row_table in self.edges_table.values_mut() {
+            for entry in row_table.values_mut() {
+                *entry *= multiplier;
+            }
+        }
     }
 }
 
@@ -319,12 +350,19 @@ impl<T: Debug + Display + Numeric> MatrixRepresentation<T> for CsrSquareMatrix<T
     }
 
     fn set_entry(&mut self, entry: T, col: u64, row: u64) {
-        if col + 1 > self.dimension {
-            self.dimension = col + 1
+        let Some(col_dimension) = col.checked_add(1) else {
+            return;
+        };
+        let Some(row_dimension) = row.checked_add(1) else {
+            return;
+        };
+
+        if col_dimension > self.dimension {
+            self.dimension = col_dimension
         }
 
-        if row + 1 > self.dimension {
-            self.dimension = row + 1
+        if row_dimension > self.dimension {
+            self.dimension = row_dimension
         }
 
         if entry == T::zero() {
@@ -353,7 +391,7 @@ impl<T: Debug + Display + Numeric> MatrixRepresentation<T> for CsrSquareMatrix<T
     }
 }
 
-impl<T: Debug + Display + Numeric> ToString for CsrSquareMatrix<T> {
+impl<T: Debug + Display + Numeric> fmt::Display for CsrSquareMatrix<T> {
     /// Generates a string representation of a `CsrSquareMatrix`. Each entry in the matrix
     /// string will have 2 digits after the decimal if the entries are of a floating-point
     /// type. If the entries are of an integral type, the entries will have no decimal.
@@ -395,8 +433,12 @@ impl<T: Debug + Display + Numeric> ToString for CsrSquareMatrix<T> {
     ///
     /// */
     /// ```
-    fn to_string(&self) -> String {
-        self.to_string_with_precision(if T::has_decimal() { 2 } else { 0 })
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(
+            &self
+                .to_string_with_precision(if T::has_decimal() { 2 } else { 0 })
+                .map_err(|_| fmt::Error)?,
+        )
     }
 }
 
@@ -753,15 +795,24 @@ mod tests {
         matrix.set_entry(1, 1, 0);
 
         let expected = "[ 1.0, 1.0, 0.0 ]\r\n[ 0.0, 1.0, 1.0 ]\r\n[ 0.0, 9.0, 0.0 ]";
-        assert_eq!(expected, matrix.to_string_with_precision(1).as_str());
+        assert_eq!(
+            expected,
+            matrix.to_string_with_precision(1).unwrap().as_str()
+        );
 
         let expected =
             "[ 1.000, 1.000, 0.000 ]\r\n[ 0.000, 1.000, 1.000 ]\r\n[ 0.000, 9.000, 0.000 ]";
-        assert_eq!(expected, matrix.to_string_with_precision(3).as_str());
+        assert_eq!(
+            expected,
+            matrix.to_string_with_precision(3).unwrap().as_str()
+        );
 
         matrix.zero_entry(1, 1);
         let expected = "[ 1, 1, 0 ]\r\n[ 0, 0, 1 ]\r\n[ 0, 9, 0 ]";
-        assert_eq!(expected, matrix.to_string_with_precision(0).as_str());
+        assert_eq!(
+            expected,
+            matrix.to_string_with_precision(0).unwrap().as_str()
+        );
 
         let mut matrix = CsrSquareMatrix::new();
 
@@ -772,17 +823,26 @@ mod tests {
         matrix.set_entry(1.7, 1, 0);
 
         let expected = "[ 1.30, 1.70, 0.00 ]\r\n[ 0.00, 2.70, 0.85 ]\r\n[ 0.00, 1.00, 0.00 ]";
-        assert_eq!(expected, matrix.to_string_with_precision(2).as_str());
+        assert_eq!(
+            expected,
+            matrix.to_string_with_precision(2).unwrap().as_str()
+        );
 
         matrix.zero_entry(1, 1);
         let expected =
             "[ 1.300, 1.700, 0.000 ]\r\n[ 0.000, 0.000, 0.847 ]\r\n[ 0.000, 1.000, 0.000 ]";
-        assert_eq!(expected, matrix.to_string_with_precision(3).as_str());
+        assert_eq!(
+            expected,
+            matrix.to_string_with_precision(3).unwrap().as_str()
+        );
 
         matrix.set_entry(-10.12, 2, 2);
         let expected =
             "[   1.3,   1.7,   0.0 ]\r\n[   0.0,   0.0,   0.8 ]\r\n[   0.0,   1.0, -10.1 ]";
-        assert_eq!(expected, matrix.to_string_with_precision(1).as_str());
+        assert_eq!(
+            expected,
+            matrix.to_string_with_precision(1).unwrap().as_str()
+        );
 
         let mut matrix = CsrSquareMatrix::new();
 
@@ -792,22 +852,34 @@ mod tests {
         matrix.set_entry(13, 1, 1);
 
         let expected = "[ 10, 12 ]\r\n[ 11, 13 ]";
-        assert_eq!(expected, matrix.to_string_with_precision(0).as_str());
+        assert_eq!(
+            expected,
+            matrix.to_string_with_precision(0).unwrap().as_str()
+        );
 
         let mut matrix = CsrSquareMatrix::new();
 
         matrix.set_entry(-1, 1, 0);
 
         let expected = "[  0, -1 ]\r\n[  0,  0 ]";
-        assert_eq!(expected, matrix.to_string_with_precision(0).as_str());
+        assert_eq!(
+            expected,
+            matrix.to_string_with_precision(0).unwrap().as_str()
+        );
 
         let matrix: CsrSquareMatrix<f64> = CsrSquareMatrix::new();
         let expected = "";
-        assert_eq!(expected, matrix.to_string_with_precision(4).as_str());
+        assert_eq!(
+            expected,
+            matrix.to_string_with_precision(4).unwrap().as_str()
+        );
 
         let matrix: CsrSquareMatrix<u64> = CsrSquareMatrix::new();
         let expected = "";
-        assert_eq!(expected, matrix.to_string_with_precision(4).as_str());
+        assert_eq!(
+            expected,
+            matrix.to_string_with_precision(4).unwrap().as_str()
+        );
     }
 
     #[test]

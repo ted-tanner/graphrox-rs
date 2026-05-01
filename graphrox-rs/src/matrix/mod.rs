@@ -15,7 +15,7 @@ use std::fmt::Debug;
 use crate::util::Numeric;
 
 /// A trait for basic matrix operations.
-pub trait MatrixRepresentation<T: Numeric>: Debug + ToString {
+pub trait MatrixRepresentation<T: Numeric>: Debug {
     /// Returns the dimension of the matrix.
     ///
     /// ```
